@@ -1,0 +1,24 @@
+{
+  "name": "aec-ingester",
+  "version": "1.0.0",
+  "description": "AEC Polling Data Ingester",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "exit 0",
+    "deploy": "node scripts/deploy"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://bitbucket.swmdigital.io/scm/bc/aec-ingester"
+  },
+  "author": "Batcave Team",
+  "license": "Proprietary",
+  "devDependencies": {
+    "@types/adm-zip": "^0.4.31",
+    "@types/node": "^7.0.5",
+    "adm-zip": "^0.4.7",
+    "aws-sdk": "^2.16.0",
+    "dotenv": "^4.0.0",
+    "typescript": "^2.1.6"
+  }
+}
