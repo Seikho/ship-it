@@ -1,48 +1,123 @@
 import * as AWS from 'aws-sdk'
-import { Lambda, APICaller } from './types'
+import { Handler } from './types'
+
+type Pair = {
+  lambda: AWS.Lambda.FunctionConfiguration,
+  handler: Handler
+}
 
 type Params = {
-  lambda: AWS.Lambda.FunctionConfiguration
-  handler: Lambda,
+  pairs: Pair[]
   gateway: AWS.APIGateway,
   restApi: AWS.APIGateway.RestApi | undefined
 }
 
-export default async function upsert(params: Params) {
-  let api = params.restApi
-  let { gateway, handler, lambda } = params
-  const caller = handler.caller as APICaller
+type ResourceMap = { [path: string]: AWS.APIGateway.Resource }
 
-  // Create the APIGateway if it does not exist
-  if (!api) {
-    // TODO: Error handling
-    api = await gateway.createRestApi({
-      name: process.env.AWS_API_NAME
-    }).promise()
+export default class ResourceCreator {
+  gateway: AWS.APIGateway
+  resourceMap: ResourceMap = {}
+  pairs: Pair[] = []
+  restApi: AWS.APIGateway.RestApi
+
+  constructor(params: Params) {
+    this.gateway = params.gateway
+    this.pairs = params.pairs
+
+    if (params.restApi) {
+      this.restApi = params.restApi
+    }
   }
 
-  const resources = await gateway.getResources({
-    restApiId: api.id as string
-  }).promise()
+  async deploy() {
+    if (!this.restApi) {
+      // TODO: Error handling
+      this.restApi = await this.gateway.createRestApi({
+        name: process.env.AWS_API_NAME
+      }).promise()
+    }
 
-  const resourceItems = resources.items as AWS.APIGateway.Resource[]
+    const resources = await this.gateway.getResources({
+      restApiId: this.restApi.id as string
+    }).promise()
 
-  const urlParts = caller.path.split('/').filter(part => part.length > 0)
+    const resourceItems = resources.items as AWS.APIGateway.Resource[]
+    this.resourceMap = resourceItems.reduce((prev, curr) => {
+      if (!curr.path) {
+        return prev
+      }
+      prev[curr.path] = curr
+      return prev
+    }, {} as ResourceMap)
 
-  /**
-   * First pass: Only support single-part URL paths
-   */
+    for (const pair of this.pairs) {
+      const { lambda, handler } = pair
+      const caller = handler.caller
 
-  const basePath = '/' + urlParts.slice(0, -1).join('/')
-  const rootResource = resourceItems.find(item => item.path === basePath)
+      if (caller.kind !== 'api') {
+        continue
+      }
 
-  /**
-   * TODO:
-   * 1. Ensure all base APIGateway.Resources exist
-   * E.g. For route '/first/second/:id' ensure:
-   * '/first' exists which references root resource as parentId
-   * '/second' exists which references '/first' resource id as parent id
-   * Upsert '/:id' which references '/second' resource id as parent id
-   * Set passed in Lambda function as destination for '/:id' resource id
-   */
+      await this.upsertResource(caller.path)
+
+    }
+  }
+
+  async upsertResource(path: string) {
+    if (path === '/') {
+      // This is assumed to exist
+      return
+    }
+
+    const parentPath = getParent(path)
+    let parentResource = this.resourceMap[parentPath]
+    if (!parentResource) {
+      await this.upsertResource(parentPath)
+    }
+
+    parentResource = this.resourceMap[parentPath]
+
+    const resource = this.resourceMap[path]
+    if (resource) {
+      // All parent Resources are assumed to exist
+      return
+    }
+    if (!resource) {
+      const newResource = await this.gateway.createResource({
+        parentId: parentResource.id as string,
+        pathPart: path,
+        restApiId: this.restApi.id as string
+      }).promise()
+      this.resourceMap[path] = newResource
+    }
+  }
+
+  async setResourceDestination(path: string, lambda: AWS.Lambda.FunctionConfiguration) {
+
+    // Assumed to exist at this point
+    // This is run after upsertResource
+    const resource = this.resourceMap[path]
+
+    // TODO: Set Resource destination to Lambda
+  }
+}
+
+
+function getParent(path: string) {
+  if (path === '/') {
+    return path
+  }
+
+  const parts = split(path)
+  const parent = '/' + parts
+    .slice(0, -1)
+    .join('/')
+
+  return parent
+}
+
+function split(path: string) {
+  return path
+    .split('/')
+    .filter(part => !!part)
 }
