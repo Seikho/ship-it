@@ -1,9 +1,9 @@
-import Deployer from '../src'
+import Deployer from '../../src'
 import * as dotenv from 'dotenv'
 import * as path from 'path'
 
 dotenv.config({
-  path: path.resolve(__dirname, '..', '.env')
+  path: path.resolve(__dirname, '..', '..', '.env')
 })
 
 const deployer = new Deployer({
@@ -24,13 +24,9 @@ deployer.register({
     contentType: 'application/json'
   },
   description: 'Geddit Quote 13',
-  files: [path.resolve(__dirname, '..', 'handlers', 'quote.js')],
+  files: [path.resolve(__dirname, 'quote.js')],
   functionName: 'Geddit-Quote-13',
   handler: 'quote.get'
 })
 
 deployer.deploy()
-
-process.on('unhandledRejection', err => {
-  console.log(err)
-})

@@ -1,29 +1,30 @@
 {
-  "name": "aec-ingester",
-  "version": "1.0.0",
-  "description": "AEC Polling Data Ingester",
+  "name": "ship-it",
+  "version": "0.1.0",
+  "description": "AWS Lambda and RESTApi Deployment Assistant",
   "main": "src/index.js",
+  "publishConfig": {
+    "registry": "https://nexus.swmdigital.io/repository/js-private"
+  },
   "scripts": {
-    "test": "exit 0",
-    "deploy": "node scripts/upsert-lambda"
+    "test": "exit 0"
   },
   "repository": {
     "type": "git",
-    "url": "https://bitbucket.swmdigital.io/scm/bc/aec-ingester"
+    "url": "https://bitbucket.swmdigital.io/scm/bc/ship-it"
   },
   "author": "Batcave Team",
   "license": "Proprietary",
   "devDependencies": {
     "@types/jszip": "0.0.32",
     "@types/node": "^7.0.5",
-    "adm-zip": "^0.4.7",
-    "aws-sdk": "^2.16.0",
     "dotenv": "^4.0.0",
     "tslint": "^4.4.2",
     "tslint-config-standard": "^4.0.0",
     "typescript": "^2.2.0"
   },
   "dependencies": {
+    "aws-sdk": "^2.16.0",
     "jszip": "^3.1.3"
   }
 }

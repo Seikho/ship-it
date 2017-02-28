@@ -3,13 +3,20 @@
 
 import * as AWS from 'aws-sdk'
 import * as Zip from 'jszip'
-import { Lambda, APICaller } from './types'
+import { Lambda, APICaller, Caller, EventCaller } from './types'
 import deployLambda from './lambda'
 import print from './print'
 import * as fs from 'fs'
 import * as path from 'path'
 
-export interface AWSConfig {
+export {
+  Lambda,
+  APICaller,
+  Caller,
+  EventCaller
+}
+
+export interface DeployerConfiguration {
   apiName: string
   stageName: string
   region: string
@@ -46,7 +53,7 @@ export default class Deployer {
   //   apiVersion: '2015-10-07'
   // })
 
-  constructor(private config: AWSConfig) {
+  constructor(private config: DeployerConfiguration) {
     AWS.config.update({
       region: config.region,
       accessKeyId: config.accessKeyId,
