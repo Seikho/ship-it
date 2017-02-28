@@ -35,3 +35,24 @@ export interface EventCaller {
   name: string
   schedule: string
 }
+
+export interface DeployerConfiguration {
+  apiName: string
+  stageName: string
+  region: string
+  accessKeyId: string
+  secretAccessKey: string
+  accountId: string
+  role: string
+}
+
+export type UpsertOptions = {
+    resourceId: string
+    config: DeployerConfiguration
+    caller: Caller
+    lambda: AWS.Lambda.FunctionConfiguration
+    restApi: AWS.APIGateway.RestApi
+    lambdaApi: AWS.Lambda
+    gateway: AWS.APIGateway
+    events: AWS.CloudWatchEvents
+}
