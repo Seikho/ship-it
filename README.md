@@ -24,7 +24,7 @@ but to still retain a sane deployment with staged environments.
 **Example usage**
 ```js
 import * as path from 'path'
-import Deployer from 'swm-ship-it'
+import Deployer from 'ship-it'
 
 const deployer = new Deployer({
   apiName: 'My Rest API',
