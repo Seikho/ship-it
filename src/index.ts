@@ -41,6 +41,7 @@ export default class Deployer {
     apiVersion: '2015-03-31'
   })
 
+  // TODO: Support Event Callers
   // private events = new AWS.CloudWatchEvents({
   //   apiVersion: '2015-10-07'
   // })
@@ -54,6 +55,10 @@ export default class Deployer {
   }
 
   async register(lambda: Lambda) {
+    /**
+     * Deploying is not cheap and not expected to exist in hot paths
+     * Expensive blocking calls are allowed
+     */
     const zip = new Zip()
     const files = lambda.files
 
@@ -71,6 +76,9 @@ export default class Deployer {
   }
 
   async deploy() {
+    /**
+     * Deploys cannot happen concurrently by instance of the Deployer
+     */
     if (this.semaphor) {
       throw new DeployError('Already deploying')
     }
@@ -80,7 +88,12 @@ export default class Deployer {
     try {
       this.semaphor = true
 
-      await this.deployResources()
+      /**
+       * Create the RestAPI (API)
+       * Ensure each Resource (route path) exists in the API
+       * Then deploy each registered API Caller
+       */
+      await this.upsertRestAPI()
       for (const handler of this.handlers) {
         const lambdaConfig = await deployLambda(this.lambda, handler, this.config.role, handler.archive)
         const caller = handler.caller as APICaller
@@ -93,7 +106,10 @@ export default class Deployer {
     }
   }
 
-  private async deployResources() {
+  private async upsertRestAPI() {
+    /**
+     * RestAPIs cannot be fetched by name, so we must get every API and locate it in a list
+     */
     const restApis = await this.gateway.getRestApis({
       limit: 0
     }).promise()
@@ -106,13 +122,16 @@ export default class Deployer {
     }
 
     if (!this.restApi) {
-      // TODO: Error handling
       this.restApi = await print(this.gateway.createRestApi({
         name: this.config.apiName,
 
       }).promise(), `Create RestAPI '${this.config.apiName}'`)
     }
 
+    /**
+     * Resources cannot be upserted deterministically one-by-one
+     * Must fetch the entire resource list and work backwards
+     */
     const resources = await this.gateway.getResources({
       restApiId: this.restApi.id as string
     }).promise()
@@ -127,10 +146,13 @@ export default class Deployer {
     }, {} as ResourceMap)
   }
 
+  /**
+   * Rescursively work up each path tree and ensure each resource exists on the API
+   */
   private async upsertResource(path: string) {
     console.log(`Upserting Resource: ${path}`)
     if (path === '/') {
-      // This is assumed to exist
+      // Root is always assumed to exist
       return
     }
 
@@ -147,6 +169,7 @@ export default class Deployer {
       // All parent Resources are assumed to exist
       return
     }
+
     if (!resource) {
       const pathPart = split(path).slice(-1)[0]
       const newResource = await print(this.gateway.createResource({
@@ -170,6 +193,15 @@ export default class Deployer {
     console.log('Caller Options: ')
     console.log(JSON.stringify(opts, null, 2))
 
+    /**
+     * Order is significant
+     * Create the method on a resource then integrate the method with the Lambda
+     * Once created, allow the API Gateway method to call the Lambda
+     * Then deploy the API
+     *
+     * Upserting is done by attempting to locate the entity and creating it if it is not found
+     * Permissions are slightly different in that they are removed and created every time
+     */
     await this.upsertMethod(opts)
     await this.upsertMethodResponse(opts)
     await this.upsertIntegration(opts, lambda.FunctionName as string)
@@ -185,8 +217,7 @@ export default class Deployer {
       restApiId: this.restApi.id as string
     }).promise()
 
-    deployments.items = deployments.items || []
-    for (const deployment of deployments.items) {
+    for (const deployment of deployments.items || []) {
       if (deployment.description === description) {
         return
       }
