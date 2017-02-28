@@ -27,7 +27,6 @@ export interface APICaller {
   kind: 'api'
   method: 'GET' | 'PUT' | 'POST' | 'DELETE'
   path: string
-  gatewayName: string
   contentType: string
 }
 

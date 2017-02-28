@@ -7,6 +7,7 @@ dotenv.config({
 })
 
 const deployer = new Deployer({
+  apiName: 'GedditQuoteFetcher',
   accountId: process.env.AWS_ACCOUNT_ID,
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   region: process.env.AWS_REGION,
@@ -20,7 +21,6 @@ deployer.register({
     kind: 'api',
     method: 'GET',
     path: '/quote/13',
-    gatewayName: 'Geddit-Quote-13',
     contentType: 'application/json'
   },
   description: 'Geddit Quote 13',

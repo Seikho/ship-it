@@ -1,6 +1,6 @@
 import * as http from 'http'
 
-export function get() {
+export function get(event, context, callback) {
   http.request({
     host: 'geddit.lol',
     path: '/quote/13',
@@ -16,6 +16,7 @@ export function get() {
 
     res.on('end', () => {
       console.log(buffer)
+      callback(null, buffer)
     })
   }).end()
 }

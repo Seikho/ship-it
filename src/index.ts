@@ -1,3 +1,6 @@
+
+// arn:aws:lambda:ap-southeast-2:291971919224:function:Geddit-Quote-13
+
 import * as AWS from 'aws-sdk'
 import * as Zip from 'jszip'
 import { Lambda, APICaller } from './types'
@@ -7,6 +10,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 export interface AWSConfig {
+  apiName: string
   stageName: string
   region: string
   accessKeyId: string
@@ -28,7 +32,6 @@ export default class Deployer {
   // Resource concerns
   private restApi: AWS.APIGateway.RestApi
   private resourceMap: ResourceMap = {}
-  private deployments: AWS.APIGateway.Deployment[]
 
   private gateway = new AWS.APIGateway({
     apiVersion: '2015-07-09'
@@ -96,7 +99,7 @@ export default class Deployer {
     }).promise()
 
     if (restApis.items) {
-      const restApi = restApis.items.find(item => item.name === process.env.AWS_API_NAME)
+      const restApi = restApis.items.find(item => item.name === this.config.apiName)
       if (restApi) {
         this.restApi = restApi
       }
@@ -105,14 +108,10 @@ export default class Deployer {
     if (!this.restApi) {
       // TODO: Error handling
       this.restApi = await print(this.gateway.createRestApi({
-        name: process.env.AWS_API_NAME
-      }).promise(), `Create RestAPI '${process.env.AWS_API_NAME}'`)
-    }
+        name: this.config.apiName,
 
-    const deployments = await this.gateway.getDeployments({
-      restApiId: this.restApi.id as string
-    }).promise()
-    this.deployments = deployments.items || []
+      }).promise(), `Create RestAPI '${this.config.apiName}'`)
+    }
 
     const resources = await this.gateway.getResources({
       restApiId: this.restApi.id as string
@@ -153,7 +152,7 @@ export default class Deployer {
       const newResource = await print(this.gateway.createResource({
         pathPart,
         parentId: parentResource.id as string,
-        restApiId: this.restApi.id as string
+        restApiId: this.restApi.id as string,
       }).promise(), `Create Resource '${path}'`)
       this.resourceMap[path] = newResource
     }
@@ -165,35 +164,61 @@ export default class Deployer {
     // This is run after upsertResource
     const resource = this.resourceMap[caller.path]
     const resourceId = resource.id as string
-    const restApiId = this.restApi.id as string
     const httpMethod = caller.method
 
     const opts = { resourceId, httpMethod }
+    console.log('Caller Options: ')
+    console.log(JSON.stringify(opts, null, 2))
+
     await this.upsertMethod(opts)
-    await this.upsertIntegration(opts, lambda.FunctionName as string)
     await this.upsertMethodResponse(opts)
+    await this.upsertIntegration(opts, lambda.FunctionName as string)
     await this.upsertIntegrationResponse(opts)
     await this.upsertPermission(caller, lambda)
+    await this.upsertDeployment(lambda)
+  }
 
-    let deployment = this.deployments
-      .find(dep => (dep.description || '').split('__')[0] === this.config.stageName)
-    if (!deployment) {
-      deployment = await this.gateway.createDeployment({
-        restApiId,
-        description: `${this.config.stageName}__lambda.Description`
-      }).promise()
+  private async upsertDeployment(lambda: AWS.Lambda.FunctionConfiguration) {
+    const description = `${this.config.stageName}__${lambda.FunctionName}`
+    const deployments = await this.gateway.getDeployments({
+      limit: 0,
+      restApiId: this.restApi.id as string
+    }).promise()
+
+    deployments.items = deployments.items || []
+    for (const deployment of deployments.items) {
+      if (deployment.description === description) {
+        return
+      }
     }
+
+    await print(this.gateway.createDeployment({
+      restApiId: this.restApi.id as string,
+      description,
+      stageDescription: this.config.stageName,
+      stageName: this.config.stageName,
+    }).promise(), `Create '${this.config.stageName}' deployment`)
   }
 
   private async upsertPermission(caller: APICaller, lambda: AWS.Lambda.FunctionConfiguration) {
     const statementId = `${this.config.stageName}-${this.restApi.name}-${lambda.FunctionName}`
-    await print(this.lambda.addPermission({
+    const baseConfig = {
       Action: 'lambda:InvokeFunction',
-      StatementId: statementId,
       FunctionName: lambda.FunctionName as string,
       Principal: 'apigateway.amazonaws.com',
-      SourceArn: `arn:aws:execute-api:${this.config.region}:${this.config.accountId}/${this.config.stageName}/${caller.method}/${this.restApi.name}`
-    }).promise().catch(() => { /** Intentional NOOP */ }), 'Add Permission')
+    }
+
+    const testArn = `arn:aws:execute-api:${this.config.region}:${this.config.accountId}:${this.restApi.id}/*/${caller.method}${caller.path}`
+    await print(this.lambda.removePermission({
+      StatementId: statementId,
+      FunctionName: lambda.FunctionName as string,
+    }).promise().catch(() => { }), `Delete 'test-${this.config.stageName}' Permission`)
+
+    await print(this.lambda.addPermission({
+      ...baseConfig,
+      StatementId: statementId,
+      SourceArn: testArn
+    }).promise().catch(() => { }), `Add 'test-${this.config.stageName}' Permission`)
   }
 
   private async upsertMethod({ resourceId, httpMethod }: Upsert) {
@@ -211,32 +236,10 @@ export default class Deployer {
         resourceId,
         httpMethod,
         restApiId,
+        requestParameters: {},
         authorizationType: 'NONE'
       }).promise(), 'Put Method')
       return method
-    }
-  }
-
-  private async upsertIntegration({ resourceId, httpMethod }: Upsert, functionName: string) {
-    const restApiId = this.restApi.id as string
-
-    try {
-      const integration = await this.gateway.getIntegration({
-        resourceId,
-        restApiId,
-        httpMethod
-      }).promise()
-      return integration
-    } catch (ex) {
-      const integration = await print(this.gateway.putIntegration({
-        httpMethod,
-        integrationHttpMethod: httpMethod,
-        resourceId,
-        restApiId,
-        type: 'AWS',
-        uri: `arn:aws:apigateway:${this.config.region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${this.config.region}:${this.config.accountId}:function:${functionName}/invocations`
-      }).promise(), 'Put Integration')
-      return integration
     }
   }
 
@@ -262,6 +265,30 @@ export default class Deployer {
         }
       }).promise(), 'Put Method Response')
       return method
+    }
+  }
+
+  private async upsertIntegration({ resourceId, httpMethod }: Upsert, functionName: string) {
+    const restApiId = this.restApi.id as string
+
+    try {
+      const integration = await this.gateway.getIntegration({
+        resourceId,
+        restApiId,
+        httpMethod
+      }).promise()
+      return integration
+    } catch (ex) {
+      const integration = await print(this.gateway.putIntegration({
+        contentHandling: 'CONVERT_TO_TEXT',
+        resourceId,
+        restApiId,
+        type: 'AWS',
+        httpMethod,
+        integrationHttpMethod: 'POST', // This must be set to 'POST' for Lambda pass-through
+        uri: `arn:aws:apigateway:${this.config.region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${this.config.region}:${this.config.accountId}:function:${functionName}/invocations`
+      }).promise(), 'Put Integration')
+      return integration
     }
   }
 
