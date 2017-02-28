@@ -119,3 +119,16 @@ interface RegisterOptions {
   }
 }
 ```
+
+## Gotchas
+
+The names are important for maintaing the link between `Deployer` consumption and services on AWS.
+
+If the Lambda function or API name are renamed, artifacts will remain on AWS that may be running that are not intended.
+
+If this happens the services must be removed by using the AWS Console (user interface) or by other means.
+
+## TODO
+- Add `CloudWatchEvents` caller support
+- Log service (method, resource, integrations, ...) IDs as they are created or referenced
+- Authorized API callers
