@@ -22,7 +22,7 @@
     "dotenv": "^4.0.0",
     "tslint": "^4.4.2",
     "tslint-config-standard": "^4.0.0",
-    "typescript": "^2.2.0"
+    "typescript": "^2.2.1"
   },
   "dependencies": {
     "aws-sdk": "^2.16.0",

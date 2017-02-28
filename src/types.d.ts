@@ -1,3 +1,5 @@
+import * as AWS from 'aws-sdk'
+
 export interface Lambda {
   /**
    * Formal Lambda function name
