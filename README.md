@@ -100,8 +100,13 @@ interface RegisterOptions {
   handler: string
 
   // Caller details for the RestAPI that will call the Lambda
-  caller: {
-    // Only 'api' is currently support
+  caller: APICaller | EventCaller
+}
+
+```
+
+```ts
+interface APICaller {
     // 'event' will be supported in the future
     kind: 'api'
 
@@ -116,7 +121,18 @@ interface RegisterOptions {
     // Return Content-Type of the Lambda
     // E.g. application/json
     contentType: string
-  }
+}
+```
+```ts
+interface EventCaller {
+    kind: 'event'
+
+    // Name of the event
+    name: string
+
+    // Cron or Rate expression
+    // See: http://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html
+    schedule: string
 }
 ```
 
@@ -129,6 +145,6 @@ If the Lambda function or API name are renamed, artifacts will remain on AWS tha
 If this happens the services must be removed by using the AWS Console (user interface) or by other means.
 
 ## TODO
-- Add `CloudWatchEvents` caller support
+- ~~Add `CloudWatchEvents` caller support~~
 - Log service (method, resource, integrations, ...) IDs as they are created or referenced
 - Authorized API callers
