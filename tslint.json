@@ -46,7 +46,7 @@
             false
         ],
         "no-console": [
-            false
+            true
         ]
     }
 }

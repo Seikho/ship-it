@@ -5,7 +5,7 @@ import * as AWS from 'aws-sdk'
 import * as Zip from 'jszip'
 import { Lambda, APICaller, Caller, EventCaller } from './types'
 import deployLambda from './lambda'
-import print from './print'
+import * as log from './log'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -53,12 +53,8 @@ export default class Deployer {
   //   apiVersion: '2015-10-07'
   // })
 
-  constructor(private config: DeployerConfiguration) {
-    AWS.config.update({
-      region: config.region,
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey
-    })
+  constructor(public config: DeployerConfiguration) {
+
   }
 
   async register(lambda: Lambda) {
@@ -89,6 +85,10 @@ export default class Deployer {
     if (this.semaphor) {
       throw new DeployError('Already deploying')
     }
+
+    // This will throw if the configuration is not valid
+    // This also sets the aws-sdk configuration
+    validateConfig(this.config)
 
     this.clean()
 
@@ -129,10 +129,11 @@ export default class Deployer {
     }
 
     if (!this.restApi) {
-      this.restApi = await print(this.gateway.createRestApi({
+      log.info(`Create RestAPI '${this.config.apiName}'`)
+      this.restApi = await this.gateway.createRestApi({
         name: this.config.apiName,
-
-      }).promise(), `Create RestAPI '${this.config.apiName}'`)
+      }).promise()
+      log.debug(log.stringify(this.restApi))
     }
 
     /**
@@ -157,7 +158,6 @@ export default class Deployer {
    * Rescursively work up each path tree and ensure each resource exists on the API
    */
   private async upsertResource(path: string) {
-    console.log(`Upserting Resource: ${path}`)
     if (path === '/') {
       // Root is always assumed to exist
       return
@@ -179,11 +179,13 @@ export default class Deployer {
 
     if (!resource) {
       const pathPart = split(path).slice(-1)[0]
-      const newResource = await print(this.gateway.createResource({
+      log.info(`Create Resource '${path}'`)
+      const newResource = await this.gateway.createResource({
         pathPart,
         parentId: parentResource.id as string,
         restApiId: this.restApi.id as string,
-      }).promise(), `Create Resource '${path}'`)
+      }).promise()
+      log.debug(log.stringify(newResource))
       this.resourceMap[path] = newResource
     }
   }
@@ -197,8 +199,6 @@ export default class Deployer {
     const httpMethod = caller.method
 
     const opts = { resourceId, httpMethod }
-    console.log('Caller Options: ')
-    console.log(JSON.stringify(opts, null, 2))
 
     /**
      * Order is significant
@@ -209,10 +209,10 @@ export default class Deployer {
      * Upserting is done by attempting to locate the entity and creating it if it is not found
      * Permissions are slightly different in that they are removed and created every time
      */
-    await this.upsertMethod(opts)
-    await this.upsertMethodResponse(opts)
-    await this.upsertIntegration(opts, lambda.FunctionName as string)
-    await this.upsertIntegrationResponse(opts)
+    await this.upsertMethod(opts, caller)
+    await this.upsertMethodResponse(opts, caller)
+    await this.upsertIntegration({ ...opts, functionName: lambda.FunctionName as string }, caller)
+    await this.upsertIntegrationResponse(opts, caller)
     await this.upsertPermission(caller, lambda)
     await this.upsertDeployment(lambda)
   }
@@ -230,12 +230,14 @@ export default class Deployer {
       }
     }
 
-    await print(this.gateway.createDeployment({
+    log.info(`Create '${this.config.stageName}' deployment`)
+    const result = await this.gateway.createDeployment({
       restApiId: this.restApi.id as string,
       description,
       stageDescription: this.config.stageName,
       stageName: this.config.stageName,
-    }).promise(), `Create '${this.config.stageName}' deployment`)
+    }).promise()
+    log.debug(log.stringify(result))
   }
 
   private async upsertPermission(caller: APICaller, lambda: AWS.Lambda.FunctionConfiguration) {
@@ -247,19 +249,23 @@ export default class Deployer {
     }
 
     const testArn = `arn:aws:execute-api:${this.config.region}:${this.config.accountId}:${this.restApi.id}/*/${caller.method}${caller.path}`
-    await print(this.lambda.removePermission({
+
+    log.info(`Delete 'test-${this.config.stageName}' Permission`)
+    await this.lambda.removePermission({
       StatementId: statementId,
       FunctionName: lambda.FunctionName as string,
-    }).promise().catch(() => { }), `Delete 'test-${this.config.stageName}' Permission`)
+    }).promise().catch(() => { })
 
-    await print(this.lambda.addPermission({
+    log.info(`Add 'test-${this.config.stageName}' Permission`)
+    const result = await this.lambda.addPermission({
       ...baseConfig,
       StatementId: statementId,
       SourceArn: testArn
-    }).promise().catch(() => { }), `Add 'test-${this.config.stageName}' Permission`)
+    }).promise().catch(() => { })
+    log.debug(log.stringify(result || {}))
   }
 
-  private async upsertMethod({ resourceId, httpMethod }: Upsert) {
+  private async upsertMethod({ resourceId, httpMethod }: Upsert, caller: APICaller) {
     const restApiId = this.restApi.id as string
 
     try {
@@ -270,18 +276,20 @@ export default class Deployer {
       }).promise()
       return method
     } catch (ex) {
-      const method = await print(this.gateway.putMethod({
+      log.info(`Put Method '${httpMethod} ${caller.path}'`)
+      const method = await this.gateway.putMethod({
         resourceId,
         httpMethod,
         restApiId,
         requestParameters: {},
         authorizationType: 'NONE'
-      }).promise(), 'Put Method')
+      }).promise()
+      log.debug(log.stringify(method))
       return method
     }
   }
 
-  private async upsertMethodResponse({ resourceId, httpMethod }: Upsert) {
+  private async upsertMethodResponse({ resourceId, httpMethod }: Upsert, caller: APICaller) {
     const restApiId = this.restApi.id as string
 
     try {
@@ -293,20 +301,24 @@ export default class Deployer {
       }).promise()
       return method
     } catch (ex) {
-      const method = await print(this.gateway.putMethodResponse({
+
+      const responseModels = {}
+      responseModels[caller.contentType] = 'Empty'
+
+      log.debug(`Put Method Response '${httpMethod} ${caller.path}'`)
+      const method = await this.gateway.putMethodResponse({
         httpMethod,
         resourceId,
         restApiId,
         statusCode: '200',
-        responseModels: {
-          'application/json': 'Empty'
-        }
-      }).promise(), 'Put Method Response')
+        responseModels
+      }).promise()
+      log.debug(log.stringify(method))
       return method
     }
   }
 
-  private async upsertIntegration({ resourceId, httpMethod }: Upsert, functionName: string) {
+  private async upsertIntegration({ resourceId, httpMethod, functionName }: Upsert & { functionName: string }, caller: APICaller) {
     const restApiId = this.restApi.id as string
 
     try {
@@ -317,7 +329,8 @@ export default class Deployer {
       }).promise()
       return integration
     } catch (ex) {
-      const integration = await print(this.gateway.putIntegration({
+      log.info(`Put Integration '${httpMethod} ${caller.path}'`)
+      const integration = await this.gateway.putIntegration({
         contentHandling: 'CONVERT_TO_TEXT',
         resourceId,
         restApiId,
@@ -325,12 +338,13 @@ export default class Deployer {
         httpMethod,
         integrationHttpMethod: 'POST', // This must be set to 'POST' for Lambda pass-through
         uri: `arn:aws:apigateway:${this.config.region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${this.config.region}:${this.config.accountId}:function:${functionName}/invocations`
-      }).promise(), 'Put Integration')
+      }).promise()
+      log.debug(log.stringify(integration))
       return integration
     }
   }
 
-  private async upsertIntegrationResponse({ resourceId, httpMethod }: Upsert) {
+  private async upsertIntegrationResponse({ resourceId, httpMethod }: Upsert, caller: APICaller) {
     const restApiId = this.restApi.id as string
 
     try {
@@ -342,7 +356,8 @@ export default class Deployer {
       }).promise()
       return integration
     } catch (ex) {
-      const integration = await print(this.gateway.putIntegrationResponse({
+      log.info(`Put Integration Response '${httpMethod} ${caller.path}'`)
+      const integration = await this.gateway.putIntegrationResponse({
         httpMethod,
         resourceId,
         restApiId,
@@ -350,7 +365,8 @@ export default class Deployer {
         responseTemplates: {
           'application/json': ''
         }
-      }).promise(), 'Put Integration Response')
+      }).promise()
+      log.debug(log.stringify(integration))
       return integration
     }
   }
@@ -385,3 +401,33 @@ function split(path: string) {
     .filter(part => !!part)
 }
 
+function validateConfig(config: DeployerConfiguration) {
+  let error = false
+
+  const props: Array<keyof DeployerConfiguration> = [
+    'accountId',
+    'region',
+    'accessKeyId',
+    'secretAccessKey',
+    'apiName',
+    'role',
+    'stageName'
+  ]
+
+  for (const prop of props) {
+    if (!config[prop]) {
+      log.error(`Invalid configuration: No '${prop}' set`)
+      error = true
+    }
+  }
+
+  if (error) {
+    throw new DeployError('Invalid configuration')
+  }
+
+  AWS.config.update({
+    region: config.region,
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey
+  })
+}

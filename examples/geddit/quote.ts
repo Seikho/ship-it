@@ -15,7 +15,6 @@ export function get(event, context, callback) {
     })
 
     res.on('end', () => {
-      console.log(buffer)
       callback(null, buffer)
     })
   }).end()

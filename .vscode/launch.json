@@ -5,7 +5,7 @@
       "type": "node",
       "request": "launch",
       "name": "Test Deploy",
-      "program": "${workspaceRoot}/scripts/index.js",
+      "program": "${workspaceRoot}/examples/geddit/index.js",
       "cwd": "${workspaceRoot}",
       "args": [
 

@@ -1,6 +1,6 @@
 import * as AWS from 'aws-sdk'
 import { Lambda } from './types'
-import print from './print'
+import * as log from './log'
 
 export default async function deploy(lambda: AWS.Lambda, handler: Lambda, role: string, archive: Buffer) {
   const exists = await lambdaExists(handler.functionName, lambda)
@@ -24,17 +24,22 @@ export default async function deploy(lambda: AWS.Lambda, handler: Lambda, role: 
   }
 
   if (exists) {
-
-    await print(lambda.updateFunctionCode(codeConfig)
-      .promise(), `Update Lambda Code '${handler.functionName}'`)
+    log.info(`Update Lambda Code '${handler.functionName}'`)
+    await lambda.updateFunctionCode(codeConfig)
+      .promise()
 
     delete config.Code
     delete config.Publish
-    return await print(lambda.updateFunctionConfiguration(config)
-      .promise(), `Update Lambda Config '${handler.functionName}'`)
+
+    log.info(`Update Lambda Config '${handler.functionName}'`)
+    const functionConfig = await lambda.updateFunctionConfiguration(config)
+      .promise()
+    log.debug(log.stringify(functionConfig))
+    return functionConfig
   }
 
-  return await print(lambda.createFunction({
+  log.info(`Create Lambda Function '${handler.functionName}'`)
+  const functionConfig = await lambda.createFunction({
     ...config,
     Runtime: 'nodejs4.3',
     MemorySize: handler.memorySize || 128,
@@ -44,20 +49,22 @@ export default async function deploy(lambda: AWS.Lambda, handler: Lambda, role: 
     Role: role,
     Handler: handler.handler,
     Code: { ZipFile: archive }
-  }).promise(), `Create Lambda Function '${handler.functionName}'`)
+  }).promise()
+  log.debug(log.stringify(functionConfig))
+
+  return functionConfig
 }
 
 async function lambdaExists(functionName: string, lambda: AWS.Lambda) {
   try {
 
     // Throws if not found
-    const result = await lambda.getFunction({
+    await lambda.getFunction({
       FunctionName: functionName
     }).promise()
-    console.log(result)
     return true
+
   } catch (ex) {
-    console.log(ex)
     return false
   }
 }
