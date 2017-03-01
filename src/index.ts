@@ -58,6 +58,7 @@ export default class Deployer {
     }
 
     const buffer: Buffer = await zip.generateAsync({ type: 'nodebuffer' })
+    lambda.functionName = `${this.config.stageName}-${lambda.functionName}`
     this.handlers.push({
       ...lambda,
       archive: buffer
@@ -75,6 +76,7 @@ export default class Deployer {
     // This will throw if the configuration is not valid
     // This also sets the aws-sdk configuration
     validateConfig(this.config)
+    this.config.apiName = `${this.config.stageName}-${this.config.apiName}`
 
     this.clean()
 
@@ -188,7 +190,7 @@ export default class Deployer {
     const resourceId = resource.id as string
 
     const opts: UpsertOptions = {
-      lambda: this.lambda,
+      lambda,
       restApi: this.restApi,
       caller,
       resourceId,
@@ -234,7 +236,7 @@ export default class Deployer {
   }
 
   private async upsertDeployment(lambda: AWS.Lambda.FunctionConfiguration) {
-    const description = `${this.config.stageName}__${lambda.FunctionName}`
+    const description = `${this.config.stageName}: ${lambda.FunctionName}`
     const deployments = await this.gateway.getDeployments({
       limit: 0,
       restApiId: this.restApi.id as string

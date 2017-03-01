@@ -5,21 +5,23 @@ export async function upsertAPIPermission(opts: UpsertOptions) {
     const { config, restApi, lambda, lambdaApi } = opts
     const caller = opts.caller as APICaller
 
-    const statementId = `${config.stageName}-${restApi.name}-${lambda.FunctionName}`
+    const statementId = `${restApi.name}-${lambda.FunctionName}`
     const baseConfig = {
         Action: 'lambda:InvokeFunction',
         FunctionName: lambda.FunctionName as string,
         Principal: 'apigateway.amazonaws.com',
     }
 
-    const arn = `arn:aws:execute-api:${config.region}:${config.accountId}:${restApi.id}/*/${caller.method}${caller.path}`
-    log.info(`Delete '${config.stageName}' Permission`)
+    const callerPath = caller.path.replace(/\{.*?\}/, '*')
+    const arn = `arn:aws:execute-api:${config.region}:${config.accountId}:${restApi.id}/*/${caller.method}${callerPath}`
+
+    log.info(`Delete '${config.stageName} ${caller.path}' Permission`)
     await lambdaApi.removePermission({
         StatementId: statementId,
         FunctionName: lambda.FunctionName as string,
     }).promise().catch(() => { /** Intentional NOOP */ })
 
-    log.info(`Add '${config.stageName}' Permission`)
+    log.info(`Add '${config.stageName} ${caller.path}' Permission`)
     const result = await lambdaApi.addPermission({
         ...baseConfig,
         StatementId: statementId,
@@ -39,6 +41,7 @@ export async function upsertMethod(opts: UpsertOptions) {
             resourceId,
             restApiId,
         }).promise()
+
         return method
     } catch (ex) {
 
@@ -96,6 +99,19 @@ export async function upsertIntegration(opts: UpsertOptions) {
     const { gateway, restApi, resourceId, config, lambda } = opts
     const caller = opts.caller as APICaller
     const restApiId = restApi.id as string
+    const requestTemplates = {
+        'params': `$input.params()`,
+        'body': `$input.body`,
+        'path': `$input.params().path`,
+        'querystring': `$input.params().querystring`,
+        'headers': `$input.params().header`
+    }
+
+    const pathParam = /\{.*?\}/.exec(caller.path)
+    if (pathParam) {
+        const part = pathParam[0].slice(1, -1) as string
+        requestTemplates[part] = `$input.params('${part}')`
+    }
 
     try {
         const integration = await gateway.getIntegration({
@@ -112,6 +128,9 @@ export async function upsertIntegration(opts: UpsertOptions) {
             contentHandling: 'CONVERT_TO_TEXT',
             resourceId,
             restApiId,
+            requestTemplates: {
+                'application/json': JSON.stringify(requestTemplates)
+            },
             type: 'AWS',
             httpMethod: caller.method,
             integrationHttpMethod: 'POST', // This must be set to 'POST' for Lambda pass-through

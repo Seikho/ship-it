@@ -13,14 +13,14 @@ const deployer = new Deployer({
   region: process.env.AWS_REGION,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   role: process.env.AWS_ROLE,
-  stageName: 'dev'
+  stageName: process.env.STAGE
 })
 
 deployer.register({
   caller: {
     kind: 'api',
     method: 'GET',
-    path: '/quote/13',
+    path: '/quote/{quoteId}',
     contentType: 'application/json'
   },
   description: 'Geddit Quote 13',
