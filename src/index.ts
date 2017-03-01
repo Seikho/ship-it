@@ -88,7 +88,12 @@ export default class Deployer {
        * Ensure each Resource (route path) exists in the API
        * Then deploy each registered API Caller
        */
-      await this.upsertRestAPI()
+
+      const hasApiCallers = this.handlers.some(handler => handler.caller.kind === 'api')
+      if (hasApiCallers) {
+        await this.upsertRestAPI()
+      }
+
       for (const handler of this.handlers) {
         const lambdaConfig = await deployLambda(this.lambda, handler, this.config.role, handler.archive)
         const caller = handler.caller

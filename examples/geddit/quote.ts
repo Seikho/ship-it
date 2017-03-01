@@ -1,15 +1,9 @@
 import * as http from 'http'
-import * as Lambda from 'aws-lambda'
-import * as querystring from 'querystring'
 
-export function get(event: any, context: Lambda.Context, callback) {
-  if (event.querystring) {
-    querystring.parse(event.querystring)
-  }
-
+export function get(event, context, callback) {
   http.request({
     host: 'geddit.lol',
-    path: `/quote/${event.quoteId}`,
+    path: `/quote/${event.path.quoteId}`,
     headers: {
       'Accept': 'application/json'
     },
@@ -22,9 +16,6 @@ export function get(event: any, context: Lambda.Context, callback) {
 
     res.on('end', () => {
       const result = JSON.parse(buffer)
-      if (querystring) {
-        result.query = event.querystring
-      }
       callback(null, result)
     })
   }).end()

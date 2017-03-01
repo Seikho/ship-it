@@ -99,19 +99,21 @@ export async function upsertIntegration(opts: UpsertOptions) {
     const { gateway, restApi, resourceId, config, lambda } = opts
     const caller = opts.caller as APICaller
     const restApiId = restApi.id as string
-    const requestTemplates = {
-        'params': `$input.params()`,
-        'body': `$input.body`,
-        'path': `$input.params().path`,
-        'querystring': `$input.params().querystring`,
-        'headers': `$input.params().header`
-    }
 
-    const pathParam = /\{.*?\}/.exec(caller.path)
-    if (pathParam) {
-        const part = pathParam[0].slice(1, -1) as string
-        requestTemplates[part] = `$input.params('${part}')`
-    }
+    const requestTemplates = `
+    #set($allParams = $input.params())
+    {
+        #foreach($type in $allParams.keySet())
+        #set($params = $allParams.get($type))
+        "$type" : {
+        #foreach($paramName in $params.keySet())
+        "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+        #if($foreach.hasNext),#end
+        #end
+        }
+        #if($foreach.hasNext),#end
+        #end
+    }`
 
     try {
         const integration = await gateway.getIntegration({
@@ -129,7 +131,7 @@ export async function upsertIntegration(opts: UpsertOptions) {
             resourceId,
             restApiId,
             requestTemplates: {
-                'application/json': JSON.stringify(requestTemplates)
+                'application/json': requestTemplates
             },
             type: 'AWS',
             httpMethod: caller.method,
