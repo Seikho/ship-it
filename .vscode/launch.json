@@ -1,11 +1,27 @@
 {
   "version": "0.2.0",
   "configurations": [
+
     {
       "type": "node",
       "request": "launch",
       "name": "Test Deploy",
       "program": "${workspaceRoot}/examples/geddit/index.js",
+      "cwd": "${workspaceRoot}",
+      "args": [
+
+      ],
+      "outFiles": [
+        "${workspaceRoot}"
+      ],
+      "sourceMaps": true,
+      "env": {}
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Test Deploy election-night",
+      "program": "${workspaceRoot}/examples/election-night/index.js",
       "cwd": "${workspaceRoot}",
       "args": [
 
