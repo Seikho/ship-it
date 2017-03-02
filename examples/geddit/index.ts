@@ -14,7 +14,7 @@ const deployer = new Deployer({
   region: process.env.AWS_REGION,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   role: process.env.AWS_ROLE,
-  stageName: process.env.STAGE
+  stageName: process.env.APP_ENV
 })
 
 deployer.register({
