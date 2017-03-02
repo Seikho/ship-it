@@ -68,6 +68,12 @@ export interface EventCaller {
   name: string
 
   /**
+   * Human readable description of the event
+   * E.g. "Hourly update trigger"
+   */
+  description: string
+
+  /**
    * Cron or Rate expression
    * See: http://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html
    */

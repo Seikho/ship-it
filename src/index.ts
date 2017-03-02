@@ -142,7 +142,7 @@ export default class Deployer {
 
   private async deployEventCaller(caller: EventCaller, lambda: AWS.Lambda.FunctionConfiguration) {
     const opts: UpsertOptions = {
-      lambda: this.lambda,
+      lambda,
       restApi: this.restApi,
       caller,
       resourceId: '',

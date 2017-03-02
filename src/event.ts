@@ -1,8 +1,11 @@
 import { EventCaller, UpsertOptions } from './types'
 import * as log from './log'
 
-export function getEventStatementName({ lambda, config, restApi }: UpsertOptions) {
-    const statementId = `${config.stageName}-${restApi.name}-${lambda.FunctionName}`
+export function getEventStatementName(opts: UpsertOptions) {
+    const { lambda } = opts
+    const caller = opts.caller as EventCaller
+
+    const statementId = `${lambda.FunctionName}-${caller.name}`
     return statementId
 }
 
@@ -49,7 +52,7 @@ export async function upsertEventRule(opts: UpsertOptions) {
     const rule = await events.putRule({
         ScheduleExpression: caller.schedule,
         Name: statementId,
-        Description: `lambda.FunctionName`
+        Description: caller.description
     }).promise()
 
     log.debug(log.stringify(rule))
@@ -65,7 +68,7 @@ export async function upsertTarget(opts: UpsertOptions) {
         Rule: statementId
     }).promise()
 
-    if (targets.Targets) {
+    if (targets.Targets && targets.Targets.length > 0) {
         log.info(`Delete Rule Targets '${config.stageName}/${caller.name}'`)
         const result = await events.removeTargets({
             Rule: statementId,
