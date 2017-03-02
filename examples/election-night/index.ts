@@ -13,14 +13,15 @@ const deployer = new Deployer({
   region: process.env.AWS_REGION,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   role: process.env.AWS_ROLE,
-  stageName: 'dougm'
+  stageName: process.env.APP_ENV
 })
 
 deployer.register({
   caller: {
     kind: 'event',
     name: 'election-night-poll-event',
-    schedule: 'rate(1 minute)'
+    schedule: 'rate(1 minute)',
+    description: 'Trigger election ingest'
   },
   description: 'Election Night Updater',
   files: [path.resolve(__dirname, 'update.js')],
