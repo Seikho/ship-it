@@ -147,4 +147,4 @@ If this happens the services must be removed by using the AWS Console (user inte
 ## TODO
 - ~~Add `CloudWatchEvents` caller support~~
 - Log service (method, resource, integrations, ...) IDs as they are created or referenced
-- Authorized API callers
+- ~~Authorized API callers~~ `wontfix`
