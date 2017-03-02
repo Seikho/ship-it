@@ -1,41 +1,7 @@
 import * as Zip from 'jszip'
-import * as AWS from 'aws-sdk'
-import * as log from './log'
 import * as fs from 'fs'
 import * as path from 'path'
-import { DeployerConfiguration } from './types'
 import { Lambda } from './index'
-
-export function validateConfig(config: DeployerConfiguration) {
-  let error = false
-
-  const props: Array<keyof DeployerConfiguration> = [
-    'accountId',
-    'region',
-    'accessKeyId',
-    'secretAccessKey',
-    'apiName',
-    'role',
-    'stageName'
-  ]
-
-  for (const prop of props) {
-    if (!config[prop]) {
-      log.error(`Invalid configuration: No '${prop}' set`)
-      error = true
-    }
-  }
-
-  if (error) {
-    throw new Error('Invalid configuration')
-  }
-
-  AWS.config.update({
-    region: config.region,
-    accessKeyId: config.accessKeyId,
-    secretAccessKey: config.secretAccessKey
-  })
-}
 
 export function getParent(path: string) {
   if (path === '/') {

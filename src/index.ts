@@ -1,5 +1,5 @@
 import { Lambda, APICaller, Caller, EventCaller, DeployerConfiguration, UpsertOptions, ResourceOpts } from './types'
-import { validateConfig, validateLamda, zip } from './util'
+import { validateLamda, zip } from './util'
 import deployLambda from './lambda'
 import * as AWS from 'aws-sdk'
 import * as log from './log'
@@ -40,7 +40,21 @@ export default class Deployer {
     apiVersion: '2015-10-07'
   })
 
-  constructor(public config: DeployerConfiguration) {
+  private config: DeployerConfiguration = {
+    accessKeyId: '',
+    accountId: '',
+    apiName: '',
+    region: '',
+    role: '',
+    secretAccessKey: '',
+    stageName: ''
+  }
+
+  constructor(config: Partial<DeployerConfiguration>) {
+    this.config = {
+      ...this.config,
+      ...config
+    }
   }
 
   register(lambda: Lambda) {
@@ -59,7 +73,7 @@ export default class Deployer {
 
     // This will throw if the configuration is not valid
     // This also sets the aws-sdk configuration
-    validateConfig(this.config)
+    this.validateConfig()
     this.config.apiName = `${this.config.stageName}-${this.config.apiName}`
 
     this.clean()
@@ -174,6 +188,44 @@ export default class Deployer {
 
   private clean() {
     this.resourceMap = {}
+  }
+
+  private validateConfig() {
+    let error = false
+
+    type Prop = {
+      key: keyof DeployerConfiguration,
+      env: string
+    }
+    const props: Array<Prop> = [
+      { key: 'accountId', env: 'AWS_ACCOUNT_ID' },
+      { key: 'region', env: 'AWS_REGION' },
+      { key: 'accessKeyId', env: 'AWS_ACCESS_KEY_ID' },
+      { key: 'secretAccessKey', env: 'AWS_SECRET_ACCESS_KEY' },
+      { key: 'apiName', env: 'AWS_API_NAME' },
+      { key: 'role', env: 'AWS_ROLE' },
+      { key: 'stageName', env: 'APP_ENV' }
+    ]
+
+    for (const prop of props) {
+      const value = this.config[prop.key] || process.env[prop.env]
+      if (!value) {
+        log.error(`Invalid configuration: No '${prop}' set`)
+        error = true
+      }
+
+      this.config[prop.key] = value
+    }
+
+    if (error) {
+      throw new Error('Invalid configuration')
+    }
+
+    AWS.config.update({
+      region: this.config.region,
+      accessKeyId: this.config.accessKeyId,
+      secretAccessKey: this.config.secretAccessKey
+    })
   }
 }
 
