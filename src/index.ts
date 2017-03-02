@@ -59,7 +59,6 @@ export default class Deployer {
 
   register(lambda: Lambda) {
     validateLamda(lambda)
-    lambda.functionName = `${this.config.stageName}-${lambda.functionName}`
     this.handlers.push(lambda)
   }
 
@@ -103,6 +102,7 @@ export default class Deployer {
 
       for (const handler of this.handlers) {
         const archive = await zip(handler)
+        handler.functionName = `${this.config.stageName}-${handler.functionName}`
         const lambdaConfig = await deployLambda(this.lambda, handler, this.config.role, archive)
 
         const caller = handler.caller
