@@ -1,11 +1,10 @@
-import { Lambda, APICaller, Caller, EventCaller, DeployerConfiguration, UpsertOptions } from './types'
-import { split, validateConfig, getParent } from './util'
+import { Lambda, APICaller, Caller, EventCaller, DeployerConfiguration, UpsertOptions, ResourceOpts } from './types'
+import { validateConfig, validateLamda, zip } from './util'
 import deployLambda from './lambda'
 import * as AWS from 'aws-sdk'
-import * as Zip from 'jszip'
 import * as log from './log'
-import * as fs from 'fs'
-import * as path from 'path'
+
+import * as resource from './resource'
 import * as api from './api'
 import * as event from './event'
 
@@ -20,7 +19,7 @@ type ResourceMap = { [path: string]: AWS.APIGateway.Resource }
 
 export default class Deployer {
 
-  private handlers: Array<Lambda & { archive: Buffer }> = []
+  private handlers: Array<Lambda> = []
   private semaphor = false
 
   // APIGateway concerns
@@ -44,25 +43,10 @@ export default class Deployer {
   constructor(public config: DeployerConfiguration) {
   }
 
-  async register(lambda: Lambda) {
-    /**
-     * Deploying is not cheap and not expected to exist in hot paths
-     * Expensive blocking calls are allowed
-     */
-    const zip = new Zip()
-    const files = lambda.files
-
-    for (const file of files) {
-      const buffer = fs.readFileSync(file)
-      zip.file(path.basename(file), buffer)
-    }
-
-    const buffer: Buffer = await zip.generateAsync({ type: 'nodebuffer' })
+  register(lambda: Lambda) {
+    validateLamda(lambda)
     lambda.functionName = `${this.config.stageName}-${lambda.functionName}`
-    this.handlers.push({
-      ...lambda,
-      archive: buffer
-    })
+    this.handlers.push(lambda)
   }
 
   async deploy() {
@@ -89,16 +73,25 @@ export default class Deployer {
        * Then deploy each registered API Caller
        */
 
+      const opts: ResourceOpts = {
+        config: this.config,
+        gateway: this.gateway,
+        resourceMap: this.resourceMap,
+        restApi: this.restApi
+      }
+
       const hasApiCallers = this.handlers.some(handler => handler.caller.kind === 'api')
       if (hasApiCallers) {
-        await this.upsertRestAPI()
+        await resource.upsertRestAPI(opts)
       }
 
       for (const handler of this.handlers) {
-        const lambdaConfig = await deployLambda(this.lambda, handler, this.config.role, handler.archive)
+        const archive = await zip(handler)
+        const lambdaConfig = await deployLambda(this.lambda, handler, this.config.role, archive)
+
         const caller = handler.caller
         if (caller.kind === 'api') {
-          await this.upsertResource(caller.path)
+          await resource.upsertResource(caller.path, opts)
           await this.deployAPICaller(caller, lambdaConfig)
         } else {
           await this.deployEventCaller(caller, lambdaConfig)
@@ -110,82 +103,6 @@ export default class Deployer {
     }
   }
 
-  /**
-  * Rescursively work up each path tree and ensure each resource exists on the API
-  */
-  async upsertResource(path: string) {
-    if (path === '/') {
-      // Root is always assumed to exist
-      return
-    }
-
-    const parentPath = getParent(path)
-    let parentResource = this.resourceMap[parentPath]
-    if (!parentResource) {
-      await this.upsertResource(parentPath)
-    }
-
-    parentResource = this.resourceMap[parentPath]
-
-    const resource = this.resourceMap[path]
-    if (resource) {
-      // All parent Resources are assumed to exist
-      return
-    }
-
-    if (!resource) {
-      const pathPart = split(path).slice(-1)[0]
-      log.info(`Create Resource '${path}'`)
-      const newResource = await this.gateway.createResource({
-        pathPart,
-        parentId: parentResource.id as string,
-        restApiId: this.restApi.id as string,
-      }).promise()
-      log.debug(log.stringify(newResource))
-      this.resourceMap[path] = newResource
-    }
-  }
-
-  private async upsertRestAPI() {
-    /**
-     * RestAPIs cannot be fetched by name, so we must get every API and locate it in a list
-     */
-    const restApis = await this.gateway.getRestApis({
-      limit: 0
-    }).promise()
-
-    if (restApis.items) {
-      const restApi = restApis.items.find(item => item.name === this.config.apiName)
-      if (restApi) {
-        this.restApi = restApi
-      }
-    }
-
-    if (!this.restApi) {
-      log.info(`Create RestAPI '${this.config.apiName}'`)
-      this.restApi = await this.gateway.createRestApi({
-        name: this.config.apiName,
-      }).promise()
-      log.debug(log.stringify(this.restApi))
-    }
-
-    /**
-     * Resources cannot be upserted deterministically one-by-one
-     * Must fetch the entire resource list and work backwards
-     */
-    const resources = await this.gateway.getResources({
-      restApiId: this.restApi.id as string
-    }).promise()
-
-    const resourceItems = resources.items as AWS.APIGateway.Resource[]
-    this.resourceMap = resourceItems.reduce((prev, curr) => {
-      if (!curr.path) {
-        return prev
-      }
-      prev[curr.path] = curr
-      return prev
-    }, {} as ResourceMap)
-  }
 
   private async deployAPICaller(caller: APICaller, lambda: AWS.Lambda.FunctionConfiguration) {
 
@@ -242,16 +159,6 @@ export default class Deployer {
 
   private async upsertDeployment(lambda: AWS.Lambda.FunctionConfiguration) {
     const description = `${this.config.stageName}: ${lambda.FunctionName}`
-    const deployments = await this.gateway.getDeployments({
-      limit: 0,
-      restApiId: this.restApi.id as string
-    }).promise()
-
-    for (const deployment of deployments.items || []) {
-      if (deployment.description === description) {
-        return
-      }
-    }
 
     log.info(`Create '${this.config.stageName}' deployment`)
     const result = await this.gateway.createDeployment({

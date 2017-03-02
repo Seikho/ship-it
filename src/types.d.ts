@@ -123,3 +123,12 @@ export type UpsertOptions = {
   gateway: AWS.APIGateway
   events: AWS.CloudWatchEvents
 }
+
+export type ResourceMap = { [path: string]: AWS.APIGateway.Resource }
+
+export type ResourceOpts = {
+  gateway: AWS.APIGateway,
+  config: DeployerConfiguration
+  restApi: AWS.APIGateway.RestApi
+  resourceMap: ResourceMap
+}
