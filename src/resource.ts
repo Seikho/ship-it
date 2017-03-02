@@ -78,11 +78,18 @@ export async function upsertRestAPI(opts: ResourceOpts) {
   }).promise()
 
   const resourceItems = resources.items as AWS.APIGateway.Resource[]
-  return resourceItems.reduce((prev, curr) => {
+  const resourceMap = resourceItems.reduce((prev, curr) => {
     if (!curr.path) {
       return prev
     }
+
     prev[curr.path] = curr
     return prev
   }, {} as ResourceMap)
+  opts.resourceMap = resourceMap
+
+  return {
+    resourceMap,
+    restApi: opts.restApi
+  }
 }
