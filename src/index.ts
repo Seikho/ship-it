@@ -82,7 +82,9 @@ export default class Deployer {
 
       const hasApiCallers = this.handlers.some(handler => handler.caller.kind === 'api')
       if (hasApiCallers) {
-        await resource.upsertRestAPI(opts)
+        const result = await resource.upsertRestAPI(opts)
+        this.resourceMap = result.resourceMap
+        this.restApi = result.restApi
       }
 
       for (const handler of this.handlers) {
@@ -174,3 +176,5 @@ export default class Deployer {
     this.resourceMap = {}
   }
 }
+
+process.on('unhandledRejection', err => console.log(err))
