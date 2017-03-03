@@ -78,7 +78,7 @@ export async function upsertTarget(opts: UpsertOptions) {
     }
 
     log.info(`Create Rule Target '${config.stageName}/${caller.name}'`)
-    events.putTargets({
+    const result = await events.putTargets({
         Rule: statementId,
         Targets: [
             {
@@ -86,5 +86,6 @@ export async function upsertTarget(opts: UpsertOptions) {
                 Arn: `arn:aws:lambda:${config.region}:${config.accountId}:function:${lambda.FunctionName}`,
             }
         ]
-    })
+    }).promise()
+    log.debug(log.stringify(result))
 }
