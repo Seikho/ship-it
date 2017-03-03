@@ -35,17 +35,28 @@ const deployer = new Deployer({
   role: 'arn:aws:iam::1234567890:role/some-role-name'
 })
 
-deployer.register({
+// This returns a RegisteredLambda object which can be re-used by callers
+const lambda = deployer.registerLambda({
   description: 'My Lambda Function',
   files: [path.resolve(__dirname, 'handlers', 'index.js')],
   functionName: 'My-Lambda-Function',
   handler: 'index.handler'
-  caller: {
-    kind: 'api', // Only 'api' is currently supported
-    method: 'GET',
-    path: '/users/42',
-    contentType: 'application/json'
-  }
+})
+
+deployer.registerCaller({
+  kind: 'api',
+  lambda, // Needs to be a RegisteredLambda from .registerLambda
+  method: 'GET',
+  path: '/users/42',
+  contentType: 'application/json'
+})
+
+deployer.registerEvent({
+  kind: 'event',
+  lambda,
+  name: 'event-name',
+  schedule: 'rate(1 minute)', // Is a Schedule expression, See: http://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html
+  description: 'Trigger my Lambda'
 })
 
 // Is asynchronous
@@ -53,6 +64,14 @@ deployer.deploy()
 ```
 
 #### Deployer
+
+Some configuration will coalesce to specific environment variables:
+- `apiName` -> `process.env.AWS_API_NAME`
+- `accountId` -> `process.env.AWS_ACCOUNT_ID`
+- `region` -> `process.env.AWS_REGION`
+- `accessKeyId` -> `process.env.AWS_ACCESS_KEY_ID`
+- `secretAccessKey` -> `process.env.AWS_SECRET_ACCESS_KEY`
+- `role` -> `process.env.AWS_ROLE`
 
 ```ts
 interface ConstructorParams {
