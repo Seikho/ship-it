@@ -1,6 +1,6 @@
 {
   "name": "ship-it",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "AWS Lambda and RESTApi Deployment Assistant",
   "main": "src/index.js",
   "publishConfig": {
