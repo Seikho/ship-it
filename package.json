@@ -6,6 +6,12 @@
   "publishConfig": {
     "registry": "https://nexus.swmdigital.io/repository/js-private"
   },
+  "files": [
+    "src/**",
+    "internal.d.ts",
+    "README.md",
+    "examples/**/*.ts"
+  ],
   "scripts": {
     "test": "exit 0",
     "deploy": "node examples/geddit/index.js"

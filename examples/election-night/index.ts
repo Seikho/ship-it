@@ -16,17 +16,19 @@ const deployer = new Deployer({
   stageName: process.env.APP_ENV
 })
 
-deployer.register({
-  caller: {
-    kind: 'event',
-    name: 'election-night-poll-event',
-    schedule: 'rate(1 minute)',
-    description: 'Trigger election ingest'
-  },
+const lambda = deployer.registerLambda({
   description: 'Election Night Updater',
   files: [path.resolve(__dirname, 'update.js')],
   functionName: 'ElectionNightPollerFunc',
   handler: 'update.poll'
+})
+
+deployer.registerCaller({
+  kind: 'event',
+  lambda,
+  name: 'election-night-poll-event',
+  schedule: 'rate(1 minute)',
+  description: 'Trigger election ingest'
 })
 
 deployer.deploy()

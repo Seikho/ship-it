@@ -1,4 +1,4 @@
-import { Lambda, APICaller, Caller, EventCaller, DeployerConfiguration, UpsertOptions, ResourceOpts } from './types'
+import { Lambda, APICaller, Caller, EventCaller, DeployerConfiguration, UpsertOptions, ResourceOpts, RegisteredLambda, DeployedLambda } from './types'
 import { validateLamda, zip } from './util'
 import deployLambda from './lambda'
 import * as AWS from 'aws-sdk'
@@ -19,8 +19,10 @@ type ResourceMap = { [path: string]: AWS.APIGateway.Resource }
 
 export default class Deployer {
 
-  private handlers: Array<Lambda> = []
+  private handlers: Array<RegisteredLambda> = []
+  private callers: Array<Caller> = []
   private semaphor = false
+  private stageTester = /^[a-zA-Z0-9]+$/
 
   // APIGateway concerns
   private restApi: AWS.APIGateway.RestApi
@@ -57,9 +59,22 @@ export default class Deployer {
     }
   }
 
-  register(lambda: Lambda) {
+  registerLambda(lambda: Lambda) {
     validateLamda(lambda)
-    this.handlers.push(lambda)
+    const id = this.handlers.length + 1
+    const registered = {
+      id,
+      ...lambda
+    }
+
+    this.handlers.push(registered)
+
+    // Return a shallow clone of the Lambda to prevent accidental manipulation
+    return Object.freeze({ ...registered })
+  }
+
+  registerCaller(caller: Caller) {
+    this.callers.push(caller)
   }
 
   async deploy() {
@@ -93,24 +108,32 @@ export default class Deployer {
         restApi: this.restApi
       }
 
-      const hasApiCallers = this.handlers.some(handler => handler.caller.kind === 'api')
+      const hasApiCallers = this.callers.some(caller => caller.kind === 'api')
       if (hasApiCallers) {
         const result = await resource.upsertRestAPI(opts)
         this.resourceMap = result.resourceMap
         this.restApi = result.restApi
       }
 
+      const deployedLambas: DeployedLambda[] = []
       for (const handler of this.handlers) {
         const archive = await zip(handler)
         handler.functionName = `${this.config.stageName}-${handler.functionName}`
-        const lambdaConfig = await deployLambda(this.lambda, handler, this.config.role, archive)
 
-        const caller = handler.caller
+        const lambdaConfig = await deployLambda(this.lambda, handler, this.config.role, archive)
+        deployedLambas.push({
+          lambda: handler,
+          configuration: lambdaConfig
+        })
+      }
+
+      for (const caller of this.callers) {
+        const lambda = deployedLambas.find(func => func.lambda.id === caller.lambda.id) as DeployedLambda
         if (caller.kind === 'api') {
           await resource.upsertResource(caller.path, opts)
-          await this.deployAPICaller(caller, lambdaConfig)
+          await this.deployAPICaller(caller, lambda.configuration)
         } else {
-          await this.deployEventCaller(caller, lambdaConfig)
+          await this.deployEventCaller(caller, lambda.configuration)
         }
       }
 
@@ -215,6 +238,14 @@ export default class Deployer {
       }
 
       this.config[prop.key] = value
+    }
+
+    if (this.config.stageName) {
+      const isValidStageName = this.stageTester.test(this.config.stageName)
+      if (!isValidStageName) {
+        log.error(`Invalid configuration: Stage name must contain only alphanumeric characters`)
+      }
+      error = true
     }
 
     if (error) {

@@ -20,7 +20,6 @@ export interface Lambda {
    * - 'handler' is exported as 'export function handler(...)'
    */
   handler: string
-  caller: Caller
 
   // Defaults to 128
   memorySize?: number
@@ -34,9 +33,26 @@ export interface Lambda {
   files: string[]
 }
 
+export interface RegisteredLambda extends Lambda {
+  id: number
+}
+
 export type Caller = APICaller | EventCaller
 
-export interface APICaller {
+interface BaseCaller {
+
+  /**
+   * The Lambda function this handler will call
+   */
+  lambda: RegisteredLambda
+}
+
+export interface DeployedLambda {
+  lambda: RegisteredLambda
+  configuration: AWS.Lambda.FunctionConfiguration
+}
+
+export interface APICaller extends BaseCaller {
   kind: 'api'
 
   /**
@@ -58,7 +74,7 @@ export interface APICaller {
   contentType: string
 }
 
-export interface EventCaller {
+export interface EventCaller extends BaseCaller {
   kind: 'event'
 
   /**
