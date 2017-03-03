@@ -225,7 +225,6 @@ export default class Deployer {
       { key: 'region', env: 'AWS_REGION' },
       { key: 'accessKeyId', env: 'AWS_ACCESS_KEY_ID' },
       { key: 'secretAccessKey', env: 'AWS_SECRET_ACCESS_KEY' },
-      { key: 'apiName', env: 'AWS_API_NAME' },
       { key: 'role', env: 'AWS_ROLE' },
       { key: 'stageName', env: 'APP_ENV' }
     ]
@@ -240,11 +239,17 @@ export default class Deployer {
       this.config[prop.key] = value
     }
 
-    if (this.config.stageName) {
-      const isValidStageName = this.stageTester.test(this.config.stageName)
-      if (!isValidStageName) {
-        log.error(`Invalid configuration: Stage name must contain only alphanumeric characters`)
-      }
+    this.config.apiName = this.config.apiName || process.env.AWS_API_NAME
+    const hasApiCallers = this.callers.some(caller => caller.kind === 'api')
+    const hasApiName = !!this.config.apiName
+    if (hasApiCallers && !hasApiName) {
+      log.error(`Invalid configuration: No 'apiName' set, but an API caller is specified`)
+      error = true
+    }
+
+    const isValidStageName = this.stageTester.test(this.config.stageName)
+    if (!isValidStageName) {
+      log.error(`Invalid configuration: Stage name must contain only alphanumeric characters`)
       error = true
     }
 
