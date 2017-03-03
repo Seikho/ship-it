@@ -14,7 +14,8 @@
   ],
   "scripts": {
     "test": "exit 0",
-    "deploy": "node examples/geddit/index.js"
+    "deploy": "node examples/geddit/index.js",
+    "clean": "node clean.js"
   },
   "repository": {
     "type": "git",
@@ -27,6 +28,7 @@
     "@types/chalk": "^0.4.31",
     "@types/jszip": "0.0.32",
     "@types/node": "^7.0.5",
+    "del": "^2.2.2",
     "dotenv": "^4.0.0",
     "tslint": "^4.4.2",
     "tslint-config-standard": "^4.0.0",
