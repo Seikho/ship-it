@@ -232,7 +232,7 @@ export default class Deployer {
     for (const prop of props) {
       const value = this.config[prop.key] || process.env[prop.env]
       if (!value) {
-        log.error(`Invalid configuration: No '${prop}' set`)
+        log.error(`Invalid configuration: No '${prop.key}' property or '${prop.env}' environment variable set`)
         error = true
       }
 
