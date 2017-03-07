@@ -124,7 +124,7 @@ export default class Deployer implements BaseDeployer {
         config: this.config,
         gateway: this.gateway,
         resourceMap: this.resourceMap,
-        restApi: this.restApi
+        restApi: this.restApi,
       }
 
       const hasApiCallers = this.callers.some(caller => caller.kind === 'api')
@@ -140,6 +140,12 @@ export default class Deployer implements BaseDeployer {
         handler.functionName = `${this.config.stageName}-${handler.functionName}`
 
         const lambdaConfig = await deployLambda(this.lambda, handler, this.config.role, archive)
+
+        // Delete all permissions on Lambda
+        if (hasApiCallers) {
+          await api.removeAllAPIPermissions({ lambda: lambdaConfig, lambdaApi: this.lambda })
+        }
+
         deployedLambas.push({
           lambda: handler,
           configuration: lambdaConfig
@@ -198,7 +204,8 @@ export default class Deployer implements BaseDeployer {
     await api.upsertMethodResponse(opts)
     await api.upsertIntegration(opts)
     await api.upsertIntegrationResponse(opts)
-    await api.upsertAPIPermission(opts)
+
+    await api.addAPIPermission(opts)
 
     await this.upsertDeployment(lambda)
   }

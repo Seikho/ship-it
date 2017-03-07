@@ -1,21 +1,8 @@
 import * as log from './log'
 import { APICaller, UpsertOptions } from './types'
 
-export async function upsertAPIPermission(opts: UpsertOptions) {
-    const { config, restApi, lambda, lambdaApi } = opts
-    const caller = opts.caller as APICaller
-
-    const statementId = `${restApi.name}-${lambda.FunctionName}`
-    const baseConfig = {
-        Action: 'lambda:InvokeFunction',
-        FunctionName: lambda.FunctionName as string,
-        Principal: 'apigateway.amazonaws.com',
-    }
-
-    const callerPath = caller.path.replace(/\{.*?\}/, '*')
-    const arn = `arn:aws:execute-api:${config.region}:${config.accountId}:${restApi.id}/*/${caller.method}${callerPath}`
-
-    // Delete all Lambda policy/permissions
+export async function removeAllAPIPermissions(opts: { lambda: AWS.Lambda.FunctionConfiguration, lambdaApi: AWS.Lambda }) {
+    const { lambda, lambdaApi } = opts
     try {
         const policy = await lambdaApi.getPolicy({
             FunctionName: lambda.FunctionName as string
@@ -28,7 +15,7 @@ export async function upsertAPIPermission(opts: UpsertOptions) {
 
             log.info(`Delete '${StatementId}' Permission`)
             await lambdaApi.removePermission({
-                StatementId: statementId,
+                StatementId,
                 FunctionName: lambda.FunctionName as string,
             }).promise().catch(err => {
                 log.warn(`Failed to delete permission '${StatementId}': ${err.message || err}`)
@@ -38,6 +25,21 @@ export async function upsertAPIPermission(opts: UpsertOptions) {
     } catch (ex) {
         // Intentional NOOP
     }
+}
+
+export async function addAPIPermission(opts: UpsertOptions) {
+    const { config, restApi, lambda, lambdaApi } = opts
+    const caller = opts.caller as APICaller
+
+    const statementId = `${restApi.name}-${lambda.FunctionName}`
+    const baseConfig = {
+        Action: 'lambda:InvokeFunction',
+        FunctionName: lambda.FunctionName as string,
+        Principal: 'apigateway.amazonaws.com',
+    }
+
+    const callerPath = caller.path.replace(/\{.*?\}/, '*')
+    const arn = `arn:aws:execute-api:${config.region}:${config.accountId}:${restApi.id}/*/${caller.method}${callerPath}`
 
     log.info(`Add '${config.stageName} ${caller.path}' Permission`)
     const result = await lambdaApi.addPermission({
