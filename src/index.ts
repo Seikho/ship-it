@@ -130,6 +130,13 @@ export default class Deployer {
       for (const caller of this.callers) {
         const lambda = deployedLambas.find(func => func.lambda.id === caller.lambda.id) as DeployedLambda
         if (caller.kind === 'api') {
+
+          // Ensure all paths have a leading slash
+          const leadingChar = caller.path.slice(0, 1)
+          if (leadingChar !== '/') {
+            caller.path = `/${caller.path}`
+          }
+
           await resource.upsertResource(caller.path, opts)
           await this.deployAPICaller(caller, lambda.configuration)
         } else {
