@@ -220,16 +220,14 @@ export default class Deployer {
       key: keyof DeployerConfiguration,
       env: string
     }
-    const props: Array<Prop> = [
+    const requiredProps: Array<Prop> = [
       { key: 'accountId', env: 'AWS_ACCOUNT_ID' },
       { key: 'region', env: 'AWS_REGION' },
-      { key: 'accessKeyId', env: 'AWS_ACCESS_KEY_ID' },
-      { key: 'secretAccessKey', env: 'AWS_SECRET_ACCESS_KEY' },
       { key: 'role', env: 'AWS_ROLE' },
       { key: 'stageName', env: 'APP_ENV' }
     ]
 
-    for (const prop of props) {
+    for (const prop of requiredProps) {
       const value = this.config[prop.key] || process.env[prop.env]
       if (!value) {
         log.error(`Invalid configuration: No '${prop.key}' property or '${prop.env}' environment variable set`)
