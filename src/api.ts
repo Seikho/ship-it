@@ -15,18 +15,39 @@ export async function upsertAPIPermission(opts: UpsertOptions) {
     const callerPath = caller.path.replace(/\{.*?\}/, '*')
     const arn = `arn:aws:execute-api:${config.region}:${config.accountId}:${restApi.id}/*/${caller.method}${callerPath}`
 
-    log.info(`Delete '${config.stageName} ${caller.path}' Permission`)
-    await lambdaApi.removePermission({
-        StatementId: statementId,
-        FunctionName: lambda.FunctionName as string,
-    }).promise().catch(() => { /** Intentional NOOP */ })
+    // Delete all Lambda policy/permissions
+    try {
+        const policy = await lambdaApi.getPolicy({
+            FunctionName: lambda.FunctionName as string
+        }).promise()
+
+        const parsed = JSON.parse(policy.Policy || '{}')
+        const statements: any[] = parsed.Statement || []
+        for (const statement of statements) {
+            const StatementId = statement.Sid
+
+            log.info(`Delete '${StatementId}' Permission`)
+            await lambdaApi.removePermission({
+                StatementId: statementId,
+                FunctionName: lambda.FunctionName as string,
+            }).promise().catch(err => {
+                log.warn(`Failed to delete permission '${StatementId}': ${err.message || err}`)
+                log.warn(log.stringify(err))
+            })
+        }
+    } catch (ex) {
+        // Intentional NOOP
+    }
 
     log.info(`Add '${config.stageName} ${caller.path}' Permission`)
     const result = await lambdaApi.addPermission({
         ...baseConfig,
         StatementId: statementId,
         SourceArn: arn
-    }).promise().catch(() => { })
+    }).promise().catch(err => {
+        log.warn(`Failed to add permission: ${err.message || err}`)
+        log.warn(log.stringify(err))
+    })
     log.debug(log.stringify(result || {}))
 }
 

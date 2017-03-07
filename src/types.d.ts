@@ -33,6 +33,12 @@ export interface Lambda {
   files: string[]
 }
 
+export interface BaseDeployer {
+  registerLambda(lambda: Lambda): RegisteredLambda
+  registerCaller(caller: Caller): void
+  deploy(): Promise<void>
+}
+
 export interface RegisteredLambda extends Lambda {
   id: number
 }

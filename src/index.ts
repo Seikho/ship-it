@@ -1,9 +1,20 @@
-import { Lambda, APICaller, Caller, EventCaller, DeployerConfiguration, UpsertOptions, ResourceOpts, RegisteredLambda, DeployedLambda } from './types'
+import {
+  Lambda,
+  APICaller,
+  Caller,
+  EventCaller,
+  DeployerConfiguration,
+  UpsertOptions,
+  ResourceOpts,
+  RegisteredLambda,
+  DeployedLambda,
+  BaseDeployer
+} from './types'
+
 import { validateLamda, zip } from './util'
 import deployLambda from './lambda'
 import * as AWS from 'aws-sdk'
 import * as log from './log'
-
 import * as resource from './resource'
 import * as api from './api'
 import * as event from './event'
@@ -17,7 +28,7 @@ export {
 
 type ResourceMap = { [path: string]: AWS.APIGateway.Resource }
 
-export default class Deployer {
+export default class Deployer implements BaseDeployer {
 
   private handlers: Array<RegisteredLambda> = []
   private callers: Array<Caller> = []
@@ -74,6 +85,14 @@ export default class Deployer {
   }
 
   registerCaller(caller: Caller) {
+    const matchedLambda = this.handlers.find(handler => (
+      Object.keys(handler).every(key => handler[key] === caller.lambda[key])
+    ))
+
+    if (!matchedLambda) {
+      throw new Error(`Invalid Caller: Caller's Lambda must have been registered by this deployer instance`)
+    }
+
     this.callers.push(caller)
   }
 
@@ -130,8 +149,6 @@ export default class Deployer {
       for (const caller of this.callers) {
         const lambda = deployedLambas.find(func => func.lambda.id === caller.lambda.id) as DeployedLambda
         if (caller.kind === 'api') {
-
-          // Ensure all paths have a leading slash
           const leadingChar = caller.path.slice(0, 1)
           if (leadingChar !== '/') {
             caller.path = `/${caller.path}`
@@ -270,4 +287,7 @@ export default class Deployer {
   }
 }
 
-process.on('unhandledRejection', err => console.log(err))
+process.on('unhandledRejection', err => {
+  console.log(err)
+  throw err
+})
