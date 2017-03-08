@@ -58,8 +58,12 @@ export async function upsertRestAPI(opts: ResourceOpts) {
     const restApi = restApis.items.find(item => item.name === config.apiName)
     if (restApi) {
       opts.restApi = restApi
+
+      // Delete all resources attached to this RestAPI
+      await removeRestAPIResources({ gateway, restApi })
     }
   }
+
 
   if (!opts.restApi) {
     log.info(`Create RestAPI '${config.apiName}'`)
@@ -91,5 +95,27 @@ export async function upsertRestAPI(opts: ResourceOpts) {
   return {
     resourceMap,
     restApi: opts.restApi
+  }
+}
+
+async function removeRestAPIResources(opts: { gateway: AWS.APIGateway, restApi: AWS.APIGateway.RestApi }) {
+  const { gateway, restApi } = opts
+
+  const resourceList = await gateway.getResources({
+    restApiId: restApi.id as string,
+    limit: 0
+  }).promise()
+
+  const resources = resourceList.items || []
+  for (const resource of resources) {
+    log.info(`Delete Resource '${resource.path}'`)
+    const result = await gateway.deleteResource({
+      restApiId: restApi.id as string,
+      resourceId: resource.id as string
+    }).promise().catch(err => log.warn(log.stringify(err)))
+
+    if (result) {
+      log.debug(log.stringify(result))
+    }
   }
 }
