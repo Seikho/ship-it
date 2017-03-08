@@ -230,7 +230,7 @@ export default class Deployer implements BaseDeployer {
   private async upsertDeployment(lambda: AWS.Lambda.FunctionConfiguration) {
     const description = `${this.config.stageName}: ${lambda.FunctionName}`
 
-    log.info(`Create '${this.config.stageName}' deployment`)
+    log.info(`Upsert '${this.config.stageName}' deployment`)
     const result = await this.gateway.createDeployment({
       restApiId: this.restApi.id as string,
       description,

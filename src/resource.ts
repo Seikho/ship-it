@@ -50,20 +50,18 @@ export async function upsertRestAPI(opts: ResourceOpts) {
   /**
    * RestAPIs cannot be fetched by name, so we must get every API and locate it in a list
    */
-  const restApis = await gateway.getRestApis({
+  const restApiList = await gateway.getRestApis({
     limit: 0
   }).promise()
 
-  if (restApis.items) {
-    const restApi = restApis.items.find(item => item.name === config.apiName)
-    if (restApi) {
-      opts.restApi = restApi
+  const restApis = restApiList.items || []
+  const restApi = restApis.find(item => item.name === config.apiName)
+  if (restApi) {
+    opts.restApi = restApi
 
-      // Delete all resources attached to this RestAPI
-      await removeRestAPIResources({ gateway, restApi })
-    }
+    // Delete all resources attached to this RestAPI
+    await removeRestAPIResources({ gateway, restApi })
   }
-
 
   if (!opts.restApi) {
     log.info(`Create RestAPI '${config.apiName}'`)
@@ -101,13 +99,42 @@ export async function upsertRestAPI(opts: ResourceOpts) {
 async function removeRestAPIResources(opts: { gateway: AWS.APIGateway, restApi: AWS.APIGateway.RestApi }) {
   const { gateway, restApi } = opts
 
-  const resourceList = await gateway.getResources({
+  let currentResource: AWS.APIGateway.Resources | null = await gateway.getResources({
     restApiId: restApi.id as string,
     limit: 0
   }).promise()
 
-  const resources = resourceList.items || []
+  const resources: AWS.APIGateway.Resource[] = []
+  if (currentResource.items) {
+    resources.push(...currentResource.items)
+  }
+
+  do {
+    const nextResource: AWS.APIGateway.Resources = await gateway.getResources({
+      restApiId: restApi.id as string,
+      limit: 0,
+      position: currentResource.position
+    }).promise()
+
+    if (nextResource.items) {
+      resources.push(...nextResource.items)
+    }
+
+    if (!nextResource.position) {
+      currentResource = null
+      continue
+    }
+
+    currentResource = nextResource
+  } while (currentResource)
+
   for (const resource of resources) {
+
+    // Root path cannot be deleted
+    if (resource.path === '/') {
+      continue
+    }
+
     log.info(`Delete Resource '${resource.path}'`)
     const result = await gateway.deleteResource({
       restApiId: restApi.id as string,
