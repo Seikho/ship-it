@@ -6,6 +6,22 @@ The purpose of this library is to create small projects or services that have th
 This is to minimise the configuration necessary on Continuous Integration (CI) platforms such as Jenkins,
 but to still retain a sane deployment with staged environments.
 
+## Gotchas
+
+### Names are Important
+
+The names are important for maintaing the link between `Deployer` consumption and services on AWS.
+
+If the Lambda function or API name are renamed, artifacts will remain on AWS that may be running that are not intended.
+
+If this happens the services must be removed by using the AWS Console (user interface) or by other means.
+
+### Lambdas / RestAPIs must not be shared between projects and `Deployer` instances
+
+**Policies, permissions, and RestAPI resources are deleted during each `.deploy()` call**
+
+**Ensure that RestAPIs (names) and Lambda (names) are not shared between projects and other instances of the `Deployer`.**
+
 ## Usage
 
 ### Requirements
@@ -154,14 +170,6 @@ interface EventCaller {
     schedule: string
 }
 ```
-
-## Gotchas
-
-The names are important for maintaing the link between `Deployer` consumption and services on AWS.
-
-If the Lambda function or API name are renamed, artifacts will remain on AWS that may be running that are not intended.
-
-If this happens the services must be removed by using the AWS Console (user interface) or by other means.
 
 ## TODO
 - ~~Add `CloudWatchEvents` caller support~~
