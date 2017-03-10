@@ -54,6 +54,11 @@ export async function upsertRestAPI(opts: ResourceOpts) {
     limit: 0
   }).promise()
 
+  const list = restApiList.items || []
+
+  log.debug('Get Existing RestAPIs')
+  log.debug(log.stringify(list.map(item => item.name)))
+
   const restApis = restApiList.items || []
   const restApi = restApis.find(item => item.name === config.apiName)
   if (restApi) {
