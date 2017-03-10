@@ -20,7 +20,7 @@ const lambda = deployer.registerLambda({
 deployer.registerCaller({
   kind: 'api',
   lambda,
-  method: 'GET',
+  method: 'POST',
   path: '/quote/{quoteId}',
   contentType: 'application/json'
 })

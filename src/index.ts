@@ -8,7 +8,8 @@ import {
   ResourceOpts,
   RegisteredLambda,
   DeployedLambda,
-  BaseDeployer
+  BaseDeployer,
+  LambdaEvent
 } from './types'
 
 import { validateLamda, zip } from './util'
@@ -20,10 +21,16 @@ import * as api from './api'
 import * as event from './event'
 
 export {
+
   Lambda,
-  APICaller,
+  RegisteredLambda,
+
   Caller,
-  EventCaller
+  APICaller,
+  EventCaller,
+
+  LambdaEvent,
+  DeployerConfiguration
 }
 
 type ResourceMap = { [path: string]: AWS.APIGateway.Resource }
