@@ -113,31 +113,53 @@ interface ConstructorParams {
 constructor(params: ConstructorParams)
 ```
 
-#### Deployer.register
+#### Deployer.registerLambda
 
 ```ts
 interface RegisterOptions {
-  // Human readable description of the Lambda
-  description: string
-
-  // Files that will be uploaded to AWS and available to the Lambda function
-  // Each file will be at that root level of the zip file
-  // All filenames must be unique
-  files: string[]
-
-  // Name of the Lambda Function
-  // Must be unique
+  /**
+   * Formal Lambda function name
+   * Must be unique
+   */
   functionName: string
 
-  // The handler (entry point) that will be called by the Lambda function
-  // Filename (with no extension) and name of the handler function
-  // filename.handler
+  /**
+   * Human readable description of the Lambda function
+   */
+  description: string
+
+  /**
+   * [filename].[function].
+   * E.g. 'index.handler'
+   * Where:
+   * - 'index.js' is in the root of the archive
+   * - 'handler' is exported as 'export function handler(...)'
+   */
   handler: string
 
-  // Caller details for the RestAPI that will call the Lambda
-  caller: APICaller | EventCaller
+  // Defaults to 128
+  memorySize?: number
+
+  // Defaults to 15
+  timeout?: number
+
+  /**
+   * Environment variables for the Lambda function at run-time
+   */
+  environment?: { [key: string]: string }
+
+  /**
+   * Absolute paths to the files to be included in the zip file
+   */
+  files: string[]
 }
 
+```
+
+#### Deployer.registerCaller(caller: Caller)
+
+```ts
+type Caller = APICaller | EventCaller
 ```
 
 ```ts
@@ -160,14 +182,25 @@ interface APICaller {
 ```
 ```ts
 interface EventCaller {
-    kind: 'event'
+  kind: 'event'
 
-    // Name of the event
-    name: string
+  /**
+   * Name of the event
+   * E.g. my-schedule-event
+   */
+  name: string
 
-    // Cron or Rate expression
-    // See: http://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html
-    schedule: string
+  /**
+   * Human readable description of the event
+   * E.g. "Hourly update trigger"
+   */
+  description: string
+
+  /**
+   * Cron or Rate expression
+   * See: http://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html
+   */
+  schedule: string
 }
 ```
 
