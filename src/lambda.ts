@@ -14,7 +14,10 @@ export default async function deploy(lambda: AWS.Lambda, handler: Lambda, role: 
     VpcConfig: {},
     Role: role,
     Handler: handler.handler,
-    Code: { ZipFile: archive }
+    Code: { ZipFile: archive },
+    Environment: {
+      Variables: handler.environment || {}
+    }
   }
 
   const codeConfig = {
@@ -39,17 +42,7 @@ export default async function deploy(lambda: AWS.Lambda, handler: Lambda, role: 
   }
 
   log.info(`Create Lambda Function '${handler.functionName}'`)
-  const functionConfig = await lambda.createFunction({
-    ...config,
-    Runtime: 'nodejs4.3',
-    MemorySize: handler.memorySize || 128,
-    Timeout: handler.timeout || 15,
-    Description: handler.description,
-    VpcConfig: {},
-    Role: role,
-    Handler: handler.handler,
-    Code: { ZipFile: archive }
-  }).promise()
+  const functionConfig = await lambda.createFunction(config).promise()
   log.debug(log.stringify(functionConfig))
 
   return functionConfig

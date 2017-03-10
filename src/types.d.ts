@@ -28,6 +28,11 @@ export interface Lambda {
   timeout?: number
 
   /**
+   * Environment variables for the Lambda function at run-time
+   */
+  environment?: { [key: string]: string }
+
+  /**
    * Absolute paths to the files to be included in the zip file
    */
   files: string[]
