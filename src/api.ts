@@ -124,19 +124,34 @@ export async function upsertIntegration(opts: UpsertOptions) {
     const restApiId = restApi.id as string
 
     const requestTemplates = `
-    #set($allParams = $input.params())
     {
-        #foreach($type in $allParams.keySet())
-        #set($params = $allParams.get($type))
-        "$type" : {
-        #foreach($paramName in $params.keySet())
-        "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
-        #if($foreach.hasNext),#end
+      "body" : $input.json('$'),
+      "headers": {
+        #foreach($header in $input.params().header.keySet())
+        "$header": "$util.escapeJavaScript($input.params().header.get($header))" #if($foreach.hasNext),#end
+
         #end
-        }
-        #if($foreach.hasNext),#end
+      },
+      "method": "$context.httpMethod",
+      "params": {
+        #foreach($param in $input.params().path.keySet())
+        "$param": "$util.escapeJavaScript($input.params().path.get($param))" #if($foreach.hasNext),#end
+
         #end
-    }`
+      },
+      "query": {
+        #foreach($queryParam in $input.params().querystring.keySet())
+        "$queryParam": "$util.escapeJavaScript($input.params().querystring.get($queryParam))" #if($foreach.hasNext),#end
+
+        #end
+      },
+       "path": {
+        #foreach($param in $input.params().path.keySet())
+        "$param": "$util.escapeJavaScript($input.params().path.get($param))" #if($foreach.hasNext),#end
+        #end
+      }
+    }
+    `
 
     try {
         const integration = await gateway.getIntegration({

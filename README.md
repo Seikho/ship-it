@@ -24,6 +24,10 @@ If this happens the services must be removed by using the AWS Console (user inte
 
 ## Release Notes
 
+#### v0.6.0
+- [Feature] Support POST body
+  - See `LambdaEvent` type
+
 #### v0.5.0
 - [Feature] Add support for Lambda VPC configuration
 
@@ -99,6 +103,22 @@ deployer.registerCaller({
 
 // Is asynchronous
 deployer.deploy()
+```
+
+#### LambdaEvent
+
+```ts
+export type LambdaEvent = {
+  body: { [key: string]: any }
+  params: { [pathPart: string]: string }
+  query: {
+    [key: string]: string
+  }
+  header: {
+    [header: string]: string
+  }
+  method: string
+}
 ```
 
 #### Deployer

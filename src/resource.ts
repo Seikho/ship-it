@@ -136,10 +136,15 @@ async function removeRestAPIResources(opts: { gateway: AWS.APIGateway, restApi: 
     }
 
     log.info(`Delete Resource '${resource.path}'`)
-    const result = await gateway.deleteResource({
+    const opts = {
       restApiId: restApi.id as string,
       resourceId: resource.id as string
-    }).promise().catch(err => log.warn(log.stringify(err)))
+    }
+    const result = await gateway.deleteResource(opts)
+      .promise().catch(err => {
+        log.warn(log.stringify(err))
+        log.warn(log.stringify(opts))
+      })
 
     if (result) {
       log.debug(log.stringify(result))

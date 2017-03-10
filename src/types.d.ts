@@ -174,3 +174,15 @@ export type ResourceOpts = {
   restApi: AWS.APIGateway.RestApi
   resourceMap: ResourceMap
 }
+
+export type LambdaEvent = {
+  body: { [key: string]: any }
+  params: { [pathPart: string]: string }
+  query: {
+    [key: string]: string
+  }
+  header: {
+    [header: string]: string
+  }
+  method: string
+}

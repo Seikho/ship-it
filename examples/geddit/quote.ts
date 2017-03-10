@@ -1,9 +1,10 @@
 import * as http from 'http'
+import { LambdaEvent } from '../../src/types'
 
-export function get(event, context, callback) {
+export function get(event: LambdaEvent, context, callback) {
   http.request({
     host: 'geddit.lol',
-    path: `/quote/${event.path.quoteId}`,
+    path: `/quote/${event.params.quoteId}`,
     headers: {
       'Accept': 'application/json'
     },
@@ -15,8 +16,16 @@ export function get(event, context, callback) {
     })
 
     res.on('end', () => {
+      if (res.statusCode !== 200) {
+        return callback({ statusCode: res.statusCode, message: res.statusMessage }, event)
+      }
+
       const result = JSON.parse(buffer)
-      callback(null, result)
+      callback(null, {
+        result,
+        event
+      })
+
     })
   }).end()
 }
