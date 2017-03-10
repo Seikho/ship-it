@@ -36,6 +36,15 @@ export interface Lambda {
    * Absolute paths to the files to be included in the zip file
    */
   files: string[]
+
+  /**
+   * VPC configuration associated with the Lambda function
+   */
+  vpcConfig?: {
+    subnetIds: string[],
+    securityGroupIds: string[],
+    vpcId: string
+  }
 }
 
 export interface BaseDeployer {

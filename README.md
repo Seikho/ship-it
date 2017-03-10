@@ -24,8 +24,11 @@ If this happens the services must be removed by using the AWS Console (user inte
 
 ## Release Notes
 
+#### v0.5.0
+- [Feature] Add support for Lambda VPC configuration
+
 #### v0.4.0
-- [Feature] Add supprt for Lambda run-time environment variables
+- [Feature] Add support for Lambda run-time environment variables
 
 #### v0.3.0
 - [Breaking] Delete all APIGateway resources and Lambda policies at the beginning of each deploy

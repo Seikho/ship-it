@@ -4,6 +4,7 @@ import * as log from './log'
 
 export default async function deploy(lambda: AWS.Lambda, handler: Lambda, role: string, archive: Buffer) {
   const exists = await lambdaExists(handler.functionName, lambda)
+
   const config = {
     FunctionName: handler.functionName,
     Publish: true,
@@ -11,13 +12,13 @@ export default async function deploy(lambda: AWS.Lambda, handler: Lambda, role: 
     MemorySize: handler.memorySize || 128,
     Timeout: handler.timeout || 15,
     Description: handler.description,
-    VpcConfig: {},
     Role: role,
     Handler: handler.handler,
     Code: { ZipFile: archive },
     Environment: {
       Variables: handler.environment || {}
-    }
+    },
+    VpcConfig: getVpcConfig(handler)
   }
 
   const codeConfig = {
@@ -59,5 +60,21 @@ async function lambdaExists(functionName: string, lambda: AWS.Lambda) {
 
   } catch (ex) {
     return false
+  }
+}
+
+function getVpcConfig(handler: Lambda) {
+  const vpcConfig = handler.vpcConfig
+
+  if (!vpcConfig) {
+    return {}
+  }
+
+  return {
+    VpcConfig: {
+      VpcId: vpcConfig.vpcId,
+      SubnetIds: vpcConfig.subnetIds,
+      SecurityGroupIds: vpcConfig.securityGroupIds
+    }
   }
 }
