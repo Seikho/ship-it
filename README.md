@@ -234,8 +234,3 @@ interface EventCaller {
   schedule: string
 }
 ```
-
-## TODO
-- ~~Add `CloudWatchEvents` caller support~~
-- Log service (method, resource, integrations, ...) IDs as they are created or referenced
-- ~~Authorized API callers~~ `wontfix`
