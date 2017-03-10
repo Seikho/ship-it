@@ -42,8 +42,7 @@ export interface Lambda {
    */
   vpcConfig?: {
     subnetIds: string[],
-    securityGroupIds: string[],
-    vpcId: string
+    securityGroupIds: string[]
   }
 }
 

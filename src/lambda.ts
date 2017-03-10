@@ -71,7 +71,6 @@ function getVpcConfig(handler: Lambda) {
   }
 
   return {
-    VpcId: vpcConfig.vpcId,
     SubnetIds: vpcConfig.subnetIds,
     SecurityGroupIds: vpcConfig.securityGroupIds
   }
