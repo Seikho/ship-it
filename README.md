@@ -22,6 +22,25 @@ If this happens the services must be removed by using the AWS Console (user inte
 
 **Ensure that RestAPIs (names) and Lambda (names) are not shared between projects and other instances of the `Deployer`.**
 
+## Release Notes
+
+#### v0.4.0
+- [Feature] Add supprt for Lambda run-time environment variables
+
+#### v0.3.0
+- [Breaking] Delete all APIGateway resources and Lambda policies at the beginning of each deploy
+
+#### v0.2.x
+- [Bugfix] Fix config validation log messages
+- [Bugfix] Fix CloudWatchEvent.putTargets call
+
+#### v0.2.0
+- [Feature/Breaking] Make Lambdas re-usable between callers
+- [Feature] Fallback to environment for Deployer config
+- [Feature] Support CloudWatchEvents as callers
+- [Breaking] Move Lambda registration to `Deployer.registerLambda()`
+- [Breaking] Rename `Deployer.register()` to `Deployer.registerCaller()`
+
 ## Usage
 
 ### Requirements
@@ -67,7 +86,7 @@ deployer.registerCaller({
   contentType: 'application/json'
 })
 
-deployer.registerEvent({
+deployer.registerCaller({
   kind: 'event',
   lambda,
   name: 'event-name',
@@ -116,7 +135,15 @@ constructor(params: ConstructorParams)
 #### Deployer.registerLambda
 
 ```ts
-interface RegisterOptions {
+function registerLambda(lambda: Lambda): RegisteredLambda
+```
+
+```ts
+interface RegisteredLambda extends Lambda {
+  id: number
+}
+
+interface Lambda {
   /**
    * Formal Lambda function name
    * Must be unique
@@ -157,6 +184,10 @@ interface RegisterOptions {
 ```
 
 #### Deployer.registerCaller(caller: Caller)
+
+```ts
+function registerCaller(caller: Caller): void
+```
 
 ```ts
 type Caller = APICaller | EventCaller
