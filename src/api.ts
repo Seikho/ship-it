@@ -1,214 +1,174 @@
+import { split, getParent } from './util'
+import { ResourceMap, ResourceOpts } from './types'
 import * as log from './log'
-import { APICaller, UpsertOptions } from './types'
 
-export async function removeAllAPIPermissions(opts: { lambda: AWS.Lambda.FunctionConfiguration, lambdaApi: AWS.Lambda }) {
-    const { lambda, lambdaApi } = opts
-    try {
-        const policy = await lambdaApi.getPolicy({
-            FunctionName: lambda.FunctionName as string
-        }).promise()
+/**
+* Rescursively work up each path tree and ensure each resource exists on the API
+*/
+export async function upsertResource(path: string, opts: ResourceOpts) {
+  const { gateway, resourceMap, restApi } = opts
 
-        const parsed = JSON.parse(policy.Policy || '{}')
-        const statements: any[] = parsed.Statement || []
-        for (const statement of statements) {
-            const StatementId = statement.Sid
+  if (path === '/') {
+    // Root is always assumed to exist
+    return
+  }
 
-            log.info(`Delete '${StatementId}' Permission`)
-            await lambdaApi.removePermission({
-                StatementId,
-                FunctionName: lambda.FunctionName as string,
-            }).promise().catch(err => {
-                log.warn(`Failed to delete permission '${StatementId}': ${err.message || err}`)
-                log.warn(log.stringify(err))
-            })
-        }
-    } catch (ex) {
-        // Intentional NOOP
-    }
+  const parentPath = getParent(path)
+  let parentResource = resourceMap[parentPath]
+  if (!parentResource) {
+    await upsertResource(parentPath, opts)
+  }
+
+  parentResource = resourceMap[parentPath]
+
+  const resource = resourceMap[path]
+  if (resource) {
+    // All parent Resources are assumed to exist
+    return
+  }
+
+  if (!resource) {
+    const pathPart = split(path).slice(-1)[0]
+    log.info(`Create Resource '${path}'`)
+    const newResource = await gateway.createResource({
+      pathPart,
+      parentId: parentResource.id as string,
+      restApiId: restApi.id as string,
+    }).promise()
+    log.debug(log.stringify(newResource))
+    resourceMap[path] = newResource
+  }
 }
 
-export async function addAPIPermission(opts: UpsertOptions) {
-    const { config, restApi, lambda, lambdaApi } = opts
-    const caller = opts.caller as APICaller
+/**
+ * Destructive function: Mutates the 'opts' object
+ */
+export async function upsertRestAPI(opts: ResourceOpts) {
+  const { gateway, config } = opts
+  /**
+   * RestAPIs cannot be fetched by name, so we must get every API and locate it in a list
+   */
 
-    const statementId = `${restApi.name}-${lambda.FunctionName}`
-    const baseConfig = {
-        Action: 'lambda:InvokeFunction',
-        FunctionName: lambda.FunctionName as string,
-        Principal: 'apigateway.amazonaws.com',
+  log.debug('Get Existing RestAPIs')
+  const restApis = await getRestApis(opts.gateway)
+  log.debug(log.stringify(restApis.map(item => item.name)))
+
+  const restApi = restApis.find(item => item.name === config.apiName)
+  if (restApi) {
+    opts.restApi = restApi
+
+    // Delete all resources attached to this RestAPI
+    await removeRestAPIResources({ gateway, restApi })
+  }
+
+  if (!opts.restApi) {
+    log.info(`Create RestAPI '${config.apiName}'`)
+    opts.restApi = await gateway.createRestApi({
+      name: config.apiName,
+    }).promise()
+    log.debug(log.stringify(opts.restApi))
+  }
+
+  /**
+   * Resources cannot be upserted deterministically one-by-one
+   * Must fetch the entire resource list and work backwards
+   */
+  const resources = await gateway.getResources({
+    restApiId: opts.restApi.id as string
+  }).promise()
+
+  const resourceItems = resources.items as AWS.APIGateway.Resource[]
+  const resourceMap = resourceItems.reduce((prev, curr) => {
+    if (!curr.path) {
+      return prev
     }
 
-    const callerPath = caller.path.replace(/\{.*?\}/, '*')
-    const arn = `arn:aws:execute-api:${config.region}:${config.accountId}:${restApi.id}/*/${caller.method}${callerPath}`
+    prev[curr.path] = curr
+    return prev
+  }, {} as ResourceMap)
+  opts.resourceMap = resourceMap
 
-    log.info(`Add '${config.stageName} ${caller.path}' Permission`)
-    const result = await lambdaApi.addPermission({
-        ...baseConfig,
-        StatementId: statementId,
-        SourceArn: arn
-    }).promise().catch(err => {
-        log.warn(`Failed to add permission: ${err.message || err}`)
+  return {
+    resourceMap,
+    restApi: opts.restApi
+  }
+}
+
+async function removeRestAPIResources(opts: { gateway: AWS.APIGateway, restApi: AWS.APIGateway.RestApi }) {
+  const { gateway, restApi } = opts
+
+  let currentResource: AWS.APIGateway.Resources | null = await gateway.getResources({
+    restApiId: restApi.id as string,
+    limit: 0
+  }).promise()
+
+  const resources: AWS.APIGateway.Resource[] = []
+  if (currentResource.items) {
+    resources.push(...currentResource.items)
+  }
+
+  do {
+    const nextResource: AWS.APIGateway.Resources = await gateway.getResources({
+      restApiId: restApi.id as string,
+      limit: 0,
+      position: currentResource.position
+    }).promise()
+
+    if (nextResource.items) {
+      resources.push(...nextResource.items)
+    }
+
+    if (!nextResource.position) {
+      currentResource = null
+      continue
+    }
+
+    currentResource = nextResource
+  } while (currentResource)
+
+  for (const resource of resources) {
+
+    // Root path cannot be deleted
+    if (resource.path === '/') {
+      continue
+    }
+
+    log.info(`Delete Resource '${resource.path}'`)
+    const opts = {
+      restApiId: restApi.id as string,
+      resourceId: resource.id as string
+    }
+    const result = await gateway.deleteResource(opts)
+      .promise().catch(err => {
         log.warn(log.stringify(err))
-    })
-    log.debug(log.stringify(result || {}))
+        log.warn(log.stringify(opts))
+      })
+
+    if (result) {
+      log.debug(log.stringify(result))
+    }
+  }
 }
 
-export async function upsertMethod(opts: UpsertOptions) {
-    const { config, restApi, resourceId, gateway } = opts
-    const caller = opts.caller as APICaller
-    const restApiId = restApi.id as string
+async function getRestApis(gateway: AWS.APIGateway) {
+  const restApis: AWS.APIGateway.RestApi[] = []
+  let results: AWS.APIGateway.RestApis | null = null
 
-    try {
-        const method = await gateway.getMethod({
-            httpMethod: caller.method,
-            resourceId,
-            restApiId,
-        }).promise()
+  do {
+    const position: string | undefined = results ? results.position : undefined
+    results = await gateway.getRestApis({
+      limit: 500,
+      position
+    }).promise()
 
-        return method
-    } catch (ex) {
+    const items = results.items || []
+    restApis.push(...items)
 
-        log.info(`Put Method '${caller.method} ${caller.path}'`)
-        log.info(`${caller.method} https://${restApiId}.execute-api.${config.region}.amazonaws.com/${config.stageName}${caller.path}`)
-
-        const method = await gateway.putMethod({
-            resourceId,
-            httpMethod: caller.method,
-            restApiId,
-            requestParameters: {},
-            authorizationType: 'NONE'
-        }).promise()
-
-        log.debug(log.stringify(method))
-
-        return method
+    if (items.length === 0) {
+      results = null
     }
-}
 
-export async function upsertMethodResponse(opts: UpsertOptions) {
-    const { gateway, restApi, resourceId } = opts
-    const caller = opts.caller as APICaller
-    const restApiId = restApi.id as string
+  } while (results !== null)
 
-    try {
-        const method = await gateway.getMethodResponse({
-            restApiId,
-            httpMethod: caller.method,
-            resourceId,
-            statusCode: '200'
-        }).promise()
-        return method
-    } catch (ex) {
-
-        const responseModels = {}
-        responseModels[caller.contentType] = 'Empty'
-
-        log.info(`Put Method Response '${caller.method} ${caller.path}'`)
-
-        const method = await gateway.putMethodResponse({
-            httpMethod: caller.method,
-            resourceId,
-            restApiId,
-            statusCode: '200',
-            responseModels
-        }).promise()
-
-        log.debug(log.stringify(method))
-        return method
-    }
-}
-
-export async function upsertIntegration(opts: UpsertOptions) {
-    const { gateway, restApi, resourceId, config, lambda } = opts
-    const caller = opts.caller as APICaller
-    const restApiId = restApi.id as string
-
-    const requestTemplates = `
-    {
-      "body" : $input.json('$'),
-      "headers": {
-        #foreach($header in $input.params().header.keySet())
-        "$header": "$util.escapeJavaScript($input.params().header.get($header))" #if($foreach.hasNext),#end
-
-        #end
-      },
-      "method": "$context.httpMethod",
-      "params": {
-        #foreach($param in $input.params().path.keySet())
-        "$param": "$util.escapeJavaScript($input.params().path.get($param))" #if($foreach.hasNext),#end
-
-        #end
-      },
-      "query": {
-        #foreach($queryParam in $input.params().querystring.keySet())
-        "$queryParam": "$util.escapeJavaScript($input.params().querystring.get($queryParam))" #if($foreach.hasNext),#end
-
-        #end
-      },
-       "path": {
-        #foreach($param in $input.params().path.keySet())
-        "$param": "$util.escapeJavaScript($input.params().path.get($param))" #if($foreach.hasNext),#end
-        #end
-      }
-    }
-    `
-
-    try {
-        const integration = await gateway.getIntegration({
-            resourceId,
-            restApiId,
-            httpMethod: caller.method
-        }).promise()
-
-        return integration
-    } catch (ex) {
-        log.info(`Put Integration '${caller.method} ${caller.path}'`)
-
-        const integration = await gateway.putIntegration({
-            contentHandling: 'CONVERT_TO_TEXT',
-            resourceId,
-            restApiId,
-            requestTemplates: {
-                'application/json': requestTemplates
-            },
-            type: 'AWS',
-            httpMethod: caller.method,
-            integrationHttpMethod: 'POST', // This must be set to 'POST' for Lambda pass-through
-            uri: `arn:aws:apigateway:${config.region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${config.region}:${config.accountId}:function:${lambda.FunctionName}/invocations`
-        }).promise()
-
-        log.debug(log.stringify(integration))
-
-        return integration
-    }
-}
-
-export async function upsertIntegrationResponse(opts: UpsertOptions) {
-    const { gateway, restApi, resourceId } = opts
-    const caller = opts.caller as APICaller
-    const restApiId = restApi.id as string
-
-    try {
-        const integration = await gateway.getIntegrationResponse({
-            restApiId,
-            httpMethod: caller.method,
-            resourceId,
-            statusCode: '200'
-        }).promise()
-
-        return integration
-    } catch (ex) {
-        log.info(`Put Integration Response '${caller.method} ${caller.path}'`)
-        const integration = await gateway.putIntegrationResponse({
-            httpMethod: caller.method,
-            resourceId,
-            restApiId,
-            statusCode: '200',
-            responseTemplates: {
-                'application/json': ''
-            }
-        }).promise()
-        log.debug(log.stringify(integration))
-        return integration
-    }
+  return restApis
 }

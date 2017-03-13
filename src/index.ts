@@ -16,8 +16,8 @@ import { validateLamda, zip } from './util'
 import deployLambda from './lambda'
 import * as AWS from 'aws-sdk'
 import * as log from './log'
-import * as resource from './resource'
 import * as api from './api'
+import * as resources from './resource'
 import * as event from './event'
 
 export {
@@ -136,7 +136,7 @@ export default class Deployer implements BaseDeployer {
 
       const hasApiCallers = this.callers.some(caller => caller.kind === 'api')
       if (hasApiCallers) {
-        const result = await resource.upsertRestAPI(opts)
+        const result = await api.upsertRestAPI(opts)
         this.resourceMap = result.resourceMap
         this.restApi = result.restApi
       }
@@ -150,7 +150,7 @@ export default class Deployer implements BaseDeployer {
 
         // Delete all permissions on Lambda
         if (hasApiCallers) {
-          await api.removeAllAPIPermissions({ lambda: lambdaConfig, lambdaApi: this.lambda })
+          await resources.removeAllAPIPermissions({ lambda: lambdaConfig, lambdaApi: this.lambda })
         }
 
         deployedLambas.push({
@@ -167,7 +167,7 @@ export default class Deployer implements BaseDeployer {
             caller.path = `/${caller.path}`
           }
 
-          await resource.upsertResource(caller.path, opts)
+          await api.upsertResource(caller.path, opts)
           await this.deployAPICaller(caller, lambda.configuration)
         } else {
           await this.deployEventCaller(caller, lambda.configuration)
@@ -207,12 +207,13 @@ export default class Deployer implements BaseDeployer {
      * Upserting is done by attempting to locate the entity and creating it if it is not found
      * Permissions are slightly different in that they are removed and created every time
      */
-    await api.upsertMethod(opts)
-    await api.upsertMethodResponse(opts)
-    await api.upsertIntegration(opts)
-    await api.upsertIntegrationResponse(opts)
 
-    await api.addAPIPermission(opts)
+
+    await resources.upsertMethod(opts)
+    await resources.upsertMethodResponse(opts)
+    await resources.upsertIntegration(opts)
+    await resources.upsertIntegrationResponse(opts)
+    await resources.addAPIPermission(opts)
 
     await this.upsertDeployment(lambda)
   }
