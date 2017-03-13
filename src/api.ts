@@ -55,6 +55,7 @@ export async function upsertRestAPI(opts: ResourceOpts) {
 
   const restApi = restApis.find(item => item.name === config.apiName)
   if (restApi) {
+    log.debug(`Using existing RestAPI '${restApi.id}'`)
     opts.restApi = restApi
 
     // Delete all resources attached to this RestAPI
