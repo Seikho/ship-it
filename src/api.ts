@@ -151,21 +151,23 @@ async function removeRestAPIResources(opts: { gateway: AWS.APIGateway, restApi: 
   }
 }
 
-async function getRestApis(gateway: AWS.APIGateway) {
+export async function getRestApis(gateway: AWS.APIGateway) {
   const restApis: AWS.APIGateway.RestApi[] = []
   let results: AWS.APIGateway.RestApis | null = null
 
   do {
+    console.log('Calling')
+    console.log('Results', results)
     const position: string | undefined = results ? results.position : undefined
     results = await gateway.getRestApis({
-      limit: 500,
+      limit: 50,
       position
     }).promise()
 
     const items = results.items || []
     restApis.push(...items)
 
-    if (items.length === 0) {
+    if (items.length === 0 || !results.position) {
       results = null
     }
 
