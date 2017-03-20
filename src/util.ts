@@ -34,10 +34,15 @@ export function validateLamda(lambda: Lambda) {
       const lambdaFile = typeof file === 'string'
         ? file
         : file.path
+
       fs.statSync(lambdaFile)
       const basename = path.basename(lambdaFile)
       const ext = path.extname(basename)
-      const filename = basename.replace(ext, '')
+      const bareBasename = basename.replace(ext, '')
+
+      const filename = typeof file === 'string'
+        ? bareBasename
+        : path.join(file.folder, bareBasename)
 
       const isHandler = handlerFilename === filename
       if (isHandler) {
@@ -50,7 +55,7 @@ export function validateLamda(lambda: Lambda) {
   }
 
   if (!handlerHasMatch) {
-    throw new Error(`Cannot register Lambda '${lambda.functionName}: Handler filename not found in provided files list`)
+    throw new Error(`Cannot register Lambda '${lambda.functionName}: Handler '${lambda.handler}' not found in provided files list`)
   }
 }
 
