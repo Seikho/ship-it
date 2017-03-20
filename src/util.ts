@@ -31,14 +31,19 @@ export function validateLamda(lambda: Lambda) {
   for (const file of lambda.files) {
     try {
       // If the file does not exist, throw with a meaningful error
-      fs.statSync(file)
-      const basename = path.basename(file)
+      const lambdaFile = typeof file === 'string'
+        ? file
+        : file.path
+      fs.statSync(lambdaFile)
+      const basename = path.basename(lambdaFile)
       const ext = path.extname(basename)
       const filename = basename.replace(ext, '')
+
       const isHandler = handlerFilename === filename
       if (isHandler) {
         handlerHasMatch = true
       }
+
     } catch (ex) {
       throw new Error(`Cannot register Lambda '${lambda.functionName}': ${file} does not exist`)
     }
@@ -54,8 +59,17 @@ export async function zip(lambda: Lambda): Promise<Buffer> {
   const files = lambda.files
 
   for (const file of files) {
-    const buffer = fs.readFileSync(file)
-    zip.file(path.basename(file), buffer)
+
+    // If the file is just a string, put the file at the top-level
+    if (typeof file === 'string') {
+      const buffer = fs.readFileSync(file)
+      zip.file(path.basename(file), buffer)
+      continue
+    }
+
+    // Otherwise insert the file at the folder name provided
+    const buffer = fs.readFileSync(file.path)
+    zip.file(path.join(file.folder, path.basename(file.path)), buffer)
   }
 
   const buffer: Buffer = await zip.generateAsync({ type: 'nodebuffer' })

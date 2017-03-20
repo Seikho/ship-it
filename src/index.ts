@@ -9,7 +9,9 @@ import {
   RegisteredLambda,
   DeployedLambda,
   BaseDeployer,
-  LambdaEvent
+  LambdaEvent,
+  LambdaCallback,
+  File
 } from './types'
 
 import { validateLamda, zip } from './util'
@@ -21,7 +23,7 @@ import * as resources from './resource'
 import * as event from './event'
 
 export {
-
+  File,
   Lambda,
   RegisteredLambda,
 
@@ -30,6 +32,7 @@ export {
   EventCaller,
 
   LambdaEvent,
+  LambdaCallback,
   DeployerConfiguration
 }
 

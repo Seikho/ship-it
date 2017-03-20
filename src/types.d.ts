@@ -1,5 +1,11 @@
 import * as AWS from 'aws-sdk'
 
+export type File =
+  | string
+  | { path: string, folder: string }
+
+export type LambdaCallback = (error?: any, result?: any) => void
+
 export interface Lambda {
   /**
    * Formal Lambda function name
@@ -35,7 +41,7 @@ export interface Lambda {
   /**
    * Absolute paths to the files to be included in the zip file
    */
-  files: string[]
+  files: File[]
 
   /**
    * VPC configuration associated with the Lambda function

@@ -166,6 +166,10 @@ interface RegisteredLambda extends Lambda {
   id: number
 }
 
+type File = 
+  | string
+  | { path: string, folder: string }
+
 interface Lambda {
   /**
    * Formal Lambda function name
@@ -200,8 +204,12 @@ interface Lambda {
 
   /**
    * Absolute paths to the files to be included in the zip file
+   *
+   * Or { path: string, folder: string } where folder is the destination inside the Lambda folder context
+   * This enables relative 'require()'s to help project structure not become one flat folder
+   * when working on multiple Lambdas in a single project
    */
-  files: string[]
+  files: File[]
 }
 
 ```
