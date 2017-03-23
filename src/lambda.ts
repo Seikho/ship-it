@@ -8,7 +8,7 @@ export default async function deploy(lambda: AWS.Lambda, handler: Lambda, role: 
   const config = {
     FunctionName: handler.functionName,
     Publish: true,
-    Runtime: 'nodejs4.3',
+    Runtime: 'nodejs6.10',
     MemorySize: handler.memorySize || 128,
     Timeout: handler.timeout || 15,
     Description: handler.description,
