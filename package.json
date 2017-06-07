@@ -1,11 +1,8 @@
 {
   "name": "ship-it",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "AWS Lambda and RESTApi Deployment Assistant",
   "main": "src/index.js",
-  "publishConfig": {
-    "registry": "https://nexus.swmdigital.io/repository/js-private"
-  },
   "files": [
     "src/**",
     "internal.d.ts",
@@ -14,13 +11,13 @@
   ],
   "scripts": {
     "test": "exit 0",
-    "publish:nexus": "node clean.js && node node_modules/typescript/bin/tsc && npm publish",
+    "build": "tsc",
     "deploy": "node examples/geddit/index.js",
     "clean": "node clean.js"
   },
   "repository": {
     "type": "git",
-    "url": "https://bitbucket.swmdigital.io/scm/bc/ship-it"
+    "url": "https://github.com/seikho/ship-it"
   },
   "author": "Batcave Team",
   "license": "Proprietary",
