@@ -26,9 +26,7 @@ export function validateLamda(lambda: Lambda) {
   let handlerHasMatch = false
   const handlerFilename = lambda
     .handler
-    .split('.')
-    .slice(0, -1)
-    .join('.')
+    .split('.')[0]
 
   for (const file of lambda.files) {
     try {
@@ -46,7 +44,7 @@ export function validateLamda(lambda: Lambda) {
         ? bareBasename
         : path.join(file.folder, bareBasename)
 
-      const isHandler = path.basename(handlerFilename) === filename
+      const isHandler = handlerFilename === filename
       if (isHandler) {
         handlerHasMatch = true
       }
