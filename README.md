@@ -6,6 +6,21 @@ The purpose of this library is to create small projects or services that have th
 This is to minimise the configuration necessary on Continuous Integration (CI) platforms such as Jenkins,
 but to still retain a sane deployment with staged environments.
 
+## How to include external dependencies
+I recommend the use of `browserify`. Include it was a `devDependency` in your project
+In `package.json` include a `bundle` script that looks like this:
+```sh
+"bundle": "browserify -e src/index.js -o bundle.js --standalone --bare -x aws-sdk"
+```
+
+- `e src/index.js`: This is an example of providing the entry point to your Lambda
+- `-o bundle.js`: This is an example of providing an output location for your bundle
+- `--standalone`: Outputs a UMD module which will preserve your module exports for using by Lambda
+- `--bare`: Will exclude Node standard libraries from the bundle
+- `x aws-sdk`: Will exclude `aws-sdk` from the bundle as it is implicitly provided by the Lambda environment
+
+In your `.registerLambda()`.`files` property, provide `bundle.js` instead of all of the individual modules.
+
 ## Gotchas
 
 ### Names are Important
